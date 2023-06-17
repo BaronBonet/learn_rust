@@ -47,9 +47,7 @@ fn get_articles_from_response(response: ureq::Response) -> Result<Vec<Article>, 
 
 fn update_date(last_article: &Article, yesterday: DateTime<Utc>) -> Result<Option<DateTime<Utc>>, chrono::ParseError> {
     let date = NaiveDateTime::parse_from_str(&last_article.seendate, "%Y%m%dT%H%M%SZ")?;
-
     let parsed_date = DateTime::from_utc(date, Utc);
-
 
     if parsed_date < yesterday {
         Ok(None)
@@ -58,60 +56,66 @@ fn update_date(last_article: &Article, yesterday: DateTime<Utc>) -> Result<Optio
     }
 }
 
+
+fn handle_articles(articles: Vec<Article>, now: DateTime<Utc>, yesterday: DateTime<Utc>) -> (Vec<Article>, Option<DateTime<Utc>>) {
+    println!("Fetched {} articles.", articles.len());
+    let last_article = articles.last().unwrap();
+
+    match update_date(last_article, yesterday) {
+        Ok(last_date_option) => match last_date_option {
+            Some(last_date) => {
+                if last_date == now {
+                    println!("No more new articles to fetch.");
+                    (vec![], None)
+                } else {
+                    println!("Now: {}", last_date);
+                    (articles, Some(last_date))
+                }
+            }
+            None => {
+                println!("No more articles to fetch.");
+                (vec![], None)
+            }
+        },
+        Err(e) => {
+            eprintln!("Failed to parse date: {}. Error: {}", &last_article.seendate, e);
+            (vec![], None)
+        }
+    }
+}
+
 fn main() {
     let mut now: DateTime<Utc> = Utc::now();
-    let yesterday: DateTime<Utc> = Utc::now() - chrono::Duration::days(1);
     let mut all_articles = vec![];
 
     loop {
+        let yesterday: DateTime<Utc> = now - chrono::Duration::days(1);
         let url = build_url(now, yesterday);
+        print!("Fetching articles from {}... ", url);
         let resp = ureq::get(&url).call();
 
         match resp {
             Ok(response) => {
                 if response.status() == 200 {
                     match get_articles_from_response(response) {
-                        Ok(mut articles) => {
-                            println!("Fetched {} articles.", articles.len());
-                            let last_article = articles.last().unwrap();
-
-                            match update_date(last_article, yesterday) {
-                                Ok(last_date_option) => {
-                                    match last_date_option {
-                                        Some(last_date) => {
-                                            if last_date == now {
-                                                println!("No more new articles to fetch.");
-                                                break;
-                                            }
-                                            println!("{}", last_date);
-                                            now = last_date;
-                                            println!("Now: {}", now);
-                                            all_articles.append(&mut articles);
-                                        }
-                                        None => {
-                                            println!("No more articles to fetch.");
-                                            break;
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to parse date: {}. Error: {}", &last_article.seendate, e);
-                                    continue
-                                }
+                        Ok(articles) => {
+                            let (new_articles, new_now) = handle_articles(articles, now, yesterday);
+                            if let Some(updated_now) = new_now {
+                                now = updated_now;
+                                all_articles.extend(new_articles);
+                            } else {
+                                break;
                             }
                         },
-                        Err(_) => {
-                            println!("Could not parse response as JSON.");
-                        }
+                        Err(_) => println!("Could not parse response as JSON."),
                     }
                 } else {
                     println!("HTTP request failed: {}", response.status());
                 }
             }
-            Err(e) => {
-                println!("HTTP request error: {}", e);
-            }
+            Err(e) => println!("HTTP request error: {}", e),
         }
+
         if let Some(last_article) = all_articles.last() {
             println!("{:?}", last_article);
         } else {
