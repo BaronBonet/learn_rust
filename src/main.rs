@@ -4,10 +4,13 @@ extern crate chrono;
 extern crate ureq;
 extern crate serde_json;
 
+use std::error::Error;
 use chrono::prelude::*;
 use std::collections::HashMap;
+use std::string::ParseError;
 use std::thread;
 use std::time::Duration;
+use csv::Writer;
 
 #[derive(Debug, Deserialize, Clone)]
 struct Article {
@@ -21,17 +24,17 @@ struct Article {
     sourcecountry: String,
 }
 
-fn build_url(now: DateTime<Utc>, yesterday: DateTime<Utc>) -> String {
-    let formatted_now = now.format("%Y%m%d%H%M%S").to_string();
-    let formatted_yesterday = yesterday.format("%Y%m%d%H%M%S").to_string();
+fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> String {
+    let formatted_start_time = start_time.format("%Y%m%d%H%M%S").to_string();
+    let formatted_end_time = end_time.format("%Y%m%d%H%M%S").to_string();
 
     let mut params = HashMap::new();
     params.insert("query", "sourcelang:french sourcecountry:FR");
     params.insert("mode", "artlist");
     params.insert("maxrecords", "250");
     params.insert("format", "json");
-    params.insert("startdatetime", &formatted_yesterday);
-    params.insert("enddatetime", &formatted_now);
+    params.insert("startdatetime", &formatted_end_time);
+    params.insert("enddatetime", &formatted_start_time);
 
     format!(
         "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode={}&maxrecords={}&format={}&startdatetime={}&enddatetime={}",
@@ -39,96 +42,113 @@ fn build_url(now: DateTime<Utc>, yesterday: DateTime<Utc>) -> String {
     )
 }
 
-fn get_articles_from_response(response: ureq::Response) -> Result<Vec<Article>, serde_json::Error> {
-    let response_string = response.into_string().unwrap();
+fn extract_articles_from_response(response: ureq::Response) -> Result<Vec<Article>, serde_json::Error> {
+    let response_string = match response.into_string() {
+        Err(e) => panic!("Error reading response body: {}", e),
+        Ok(s) => s,
+    };
+    println!("Response string: {}", response_string);  // Log the response body
     let body: HashMap<String, Vec<Article>> = serde_json::from_str(&response_string)?;
     Ok(body["articles"].clone())
+}
+
+
+fn call_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Result<ureq::Response, Box<dyn Error>> {
+    // Start time must be before end time
+    let url = build_url(start_time, end_time);
+    println!("Fetching articles from {}... ", url);
+    let resp = ureq::get(&url).call();
+    match resp {
+        Ok(response) => {
+            if response.status() == 200 {
+                println!("Success!");
+                Ok(response)
+            } else {
+                let status = response.status();
+                let body = response.into_string().unwrap();
+                Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("HTTP error, status: {}, body: {}",status,  body))))
+            }
+        },
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
+fn save_to_csv(articles: Vec<Article>) ->  Result<(), Box<dyn Error>> {
+    let mut wtr = Writer::from_path("articles.csv")?;
+
+
+    // Write headers
+    wtr.write_record(&["url", "url_mobile", "title", "seendate", "socialimage", "domain", "language", "sourcecountry"])?;
+
+    // Write records
+    for article in articles {
+        wtr.write_record(&[&article.url, &article.url_mobile, &article.title, &article.seendate, &article.socialimage, &article.domain, &article.language, &article.sourcecountry])?;
+    }
+
+    // Flush the writer to ensure all data is written to the file
+    wtr.flush()?;
+
+    println!("Articles written to articles.csv");
+    Ok(())
+}
+
+
+
+fn fetch_articles_between(mut start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Vec<Article> {
+    let mut all_articles = vec![];
+
+    while start_time > end_time {
+        let mut articles: Vec<Article>;
+        match call_url(start_time, end_time) {
+            Ok(response) => {
+                match extract_articles_from_response(response) {
+                    Ok(ars) => {
+                        // Append articles to all_articles
+                        articles = ars;
+                    },
+                    Err(err) => {
+                        println!("Error extracting articles: {}", err);
+                        break;
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error calling URL: {}", err);
+                break;
+            },
+        }
+
+        // get teh last article in the list
+        println!("articles: {}", articles.len());
+
+        // what are the tines?
+        // 20230617T204500Z
+        // 20230617T130000Z
+
+        break
+        // // Sleep for 5 seconds to avoid getting blocked
+        // std::thread::sleep(std::time::Duration::from_secs(5));
+    }
+
+    all_articles
+}
+
+
+fn main() {
+    let now: DateTime<Utc> = Utc::now();
+    let all_articles = fetch_articles_between(now - chrono::Duration::days(0), now - chrono::Duration::days(1));
+    // let _ = save_to_csv(all_articles.clone());
+
+    // Print all articles
+    println!("number of articles: {}", all_articles.len());
 }
 
 fn update_date(last_article: &Article, yesterday: DateTime<Utc>) -> Result<Option<DateTime<Utc>>, chrono::ParseError> {
     let date = NaiveDateTime::parse_from_str(&last_article.seendate, "%Y%m%dT%H%M%SZ")?;
     let parsed_date = DateTime::from_utc(date, Utc);
-
     if parsed_date < yesterday {
         Ok(None)
     } else {
         Ok(Some(parsed_date))
-    }
-}
-
-
-fn handle_articles(articles: Vec<Article>, now: DateTime<Utc>, yesterday: DateTime<Utc>) -> (Vec<Article>, Option<DateTime<Utc>>) {
-    println!("Fetched {} articles.", articles.len());
-    let last_article = articles.last().unwrap();
-
-    match update_date(last_article, yesterday) {
-        Ok(last_date_option) => match last_date_option {
-            Some(last_date) => {
-                if last_date == now {
-                    println!("No more new articles to fetch.");
-                    (vec![], None)
-                } else {
-                    println!("Now: {}", last_date);
-                    (articles, Some(last_date))
-                }
-            }
-            None => {
-                println!("No more articles to fetch.");
-                (vec![], None)
-            }
-        },
-        Err(e) => {
-            eprintln!("Failed to parse date: {}. Error: {}", &last_article.seendate, e);
-            (vec![], None)
-        }
-    }
-}
-
-fn main() {
-    let mut now: DateTime<Utc> = Utc::now();
-    let mut all_articles = vec![];
-
-    loop {
-        let yesterday: DateTime<Utc> = now - chrono::Duration::days(1);
-        let url = build_url(now, yesterday);
-        print!("Fetching articles from {}... ", url);
-        let resp = ureq::get(&url).call();
-
-        match resp {
-            Ok(response) => {
-                if response.status() == 200 {
-                    match get_articles_from_response(response) {
-                        Ok(articles) => {
-                            let (new_articles, new_now) = handle_articles(articles, now, yesterday);
-                            if let Some(updated_now) = new_now {
-                                now = updated_now;
-                                all_articles.extend(new_articles);
-                            } else {
-                                break;
-                            }
-                        },
-                        Err(_) => println!("Could not parse response as JSON."),
-                    }
-                } else {
-                    println!("HTTP request failed: {}", response.status());
-                }
-            }
-            Err(e) => println!("HTTP request error: {}", e),
-        }
-
-        if let Some(last_article) = all_articles.last() {
-            println!("{:?}", last_article);
-        } else {
-            println!("The vector is empty!");
-        }
-
-        // Sleep for 5 seconds to avoid getting blocked
-        thread::sleep(Duration::from_secs(5));
-    }
-
-    // Print all articles
-    println!("number of articles: {}", all_articles.len());
-    for article in all_articles {
-        println!("{:?}", article);
     }
 }
