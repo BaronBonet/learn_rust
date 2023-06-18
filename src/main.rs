@@ -1,4 +1,5 @@
 mod core;
+mod adapters;
 
 #[macro_use]
 extern crate serde_derive;
@@ -26,7 +27,7 @@ struct Article {
     sourcecountry: String,
 }
 
-fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> String {
+fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>, source_country: iso_country::alpha2, ) -> String {
     // https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
     let formatted_start_time = start_time.format("%Y%m%d%H%M%S").to_string();
     let formatted_end_time = end_time.format("%Y%m%d%H%M%S").to_string();
@@ -39,6 +40,7 @@ fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> String {
     params.insert("startdatetime", &formatted_end_time);
     params.insert("enddatetime", &formatted_start_time);
 
+    // https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry:FR%20AND%20(%22climate%20change%22%20OR%20%22global%20warming%22)&mode=artlist&maxrecords=250&startdatetime=20230617164918&enddatetime=20230618164918&sort=datedesc&format=json
     format!(
         "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode={}&maxrecords={}&format={}&startdatetime={}&enddatetime={}&sort=datedesc",
         params["query"], params["mode"], params["maxrecords"], params["format"], params["startdatetime"], params["enddatetime"]
@@ -140,8 +142,6 @@ fn fetch_articles_between(mut start_time: DateTime<Utc>, end_time: DateTime<Utc>
                 break;
             }
         }
-        // Sleep for 5 seconds to avoid getting blocked
-        // std::thread::sleep(std::time::Duration::from_secs(5));
     }
     all_articles
 }
