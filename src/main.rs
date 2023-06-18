@@ -49,12 +49,12 @@ fn extract_articles_from_response(response: ureq::Response) -> Result<Vec<Articl
         Ok(s) => s,
     };
 
-    let body: HashMap<String, Vec<Article>> = match serde_json::from_str(&response_string){
-        Err(e) => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing response body: {}", e)))),
-        Ok(s) => s,
-    };
+    let body: Result<HashMap<String, Vec<Article>>, serde_json::Error> = serde_json::from_str(&response_string);
 
-    Ok(body["articles"].clone())
+    match body {
+        Ok(body) => Ok(body["articles"].clone()),
+        Err(_) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing response body: {}", response_string)))),
+    }
 }
 
 
@@ -78,43 +78,66 @@ fn call_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Result<ureq::
     }
 }
 
+fn extract_date(article: &Article) -> Result<DateTime<Utc>, chrono::ParseError> {
+    let date = NaiveDateTime::parse_from_str(&article.seendate, "%Y%m%dT%H%M%SZ")?;
+    Ok(DateTime::from_utc(date, Utc))
+}
+
 fn fetch_articles_between(mut start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Vec<Article> {
+    println!("Fetching articles between {} and {}...", start_time.format("%Y-%m-%d %H:%M:%S"), end_time.format("%Y-%m-%d %H:%M:%S"));
     let mut all_articles = vec![];
 
     while start_time > end_time {
-        let mut articles: Vec<Article>;
-        // let resp: ureq::Response;
+        let resp: ureq::Response;
         match call_url(start_time, end_time) {
             Ok(response) => {
-                match extract_articles_from_response(response) {
-                    Ok(ars) => {
-                        // Append articles to all_articles
-                        articles = ars;
-                    },
-                    Err(err) => {
-                        println!("Error extracting articles: {}", err);
-                        break;
-                    }
-                }
+                resp = response;
             },
             Err(err) => {
                 println!("Error calling URL: {}", err);
                 break;
             },
         }
-
-        // get the last article in the vector which is the oldest
-        // replace that timestamp with the start time.
-
-        // Note what format are the times in?
-        // 20230617T204500Z
-        // 20230617T130000Z
-        // So we can parse them with something like
-        //    let date = NaiveDateTime::parse_from_str(&last_article.seendate, "%Y%m%dT%H%M%SZ")?;
-        //     let parsed_date = DateTime::from_utc(date, Utc);
-
-        break // Remove once this works
-        // // Sleep for 5 seconds to avoid getting blocked
+        let mut articles: Vec<Article>;
+        match extract_articles_from_response(resp) {
+            Ok(ars) => {
+                articles = ars;
+            },
+            Err(err) => {
+                println!("Error extracting articles: {}", err);
+                break;
+            }
+        }
+        println!("Number of articles before match: {}", articles.len());
+        match articles.len() {
+            0 => {
+                println!("No articles found");
+                break;
+            },
+            1..=249 => {
+                println!("{} articles found, less than 250 so stopping", articles.len());
+                all_articles.append(&mut articles);
+                break;
+            },
+            250.. => {
+                match  extract_date(articles.last().unwrap()) {
+                    Ok(date) => {
+                        start_time = date;
+                        println!("Latest article date: {}", date)
+                    },
+                    Err(err) => {
+                        println!("Error extracting date: {}", err);
+                        break;
+                    }
+                };
+                all_articles.append( &mut articles);
+            }
+            _ => {
+                println!("An unexpected length was returned");
+                break;
+            }
+        }
+        // Sleep for 5 seconds to avoid getting blocked
         // std::thread::sleep(std::time::Duration::from_secs(5));
     }
     all_articles
@@ -124,24 +147,15 @@ fn fetch_articles_between(mut start_time: DateTime<Utc>, end_time: DateTime<Utc>
 fn main() {
     let now: DateTime<Utc> = Utc::now();
     let all_articles = fetch_articles_between(now - chrono::Duration::days(0), now - chrono::Duration::days(1));
-    // let _ = save_to_csv(all_articles.clone());
+    let _ = save_to_csv(all_articles.clone());
 
     // Print all articles
     println!("number of articles: {}", all_articles.len());
 }
 
-fn update_date(last_article: &Article, yesterday: DateTime<Utc>) -> Result<Option<DateTime<Utc>>, chrono::ParseError> {
-    let date = NaiveDateTime::parse_from_str(&last_article.seendate, "%Y%m%dT%H%M%SZ")?;
-    let parsed_date = DateTime::from_utc(date, Utc);
-    if parsed_date < yesterday {
-        Ok(None)
-    } else {
-        Ok(Some(parsed_date))
-    }
-}
 
 fn save_to_csv(articles: Vec<Article>) ->  Result<(), Box<dyn Error>> {
-    let mut wtr = Writer::from_path("articles.csv")?;
+    let mut wtr = Writer::from_path("articles_new.csv")?;
 
 
     // Write headers
