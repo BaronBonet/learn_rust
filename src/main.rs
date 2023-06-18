@@ -42,13 +42,18 @@ fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> String {
     )
 }
 
-fn extract_articles_from_response(response: ureq::Response) -> Result<Vec<Article>, serde_json::Error> {
-    let response_string = match response.into_string() {
-        Err(e) => panic!("Error reading response body: {}", e),
+
+fn extract_articles_from_response(response: ureq::Response) -> Result<Vec<Article>, Box<dyn Error>> {
+    let response_string = match response.into_string(){
+        Err(e) => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error reading response body: {}", e)))),
         Ok(s) => s,
     };
-    println!("Response string: {}", response_string);  // Log the response body
-    let body: HashMap<String, Vec<Article>> = serde_json::from_str(&response_string)?;
+
+    let body: HashMap<String, Vec<Article>> = match serde_json::from_str(&response_string){
+        Err(e) => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error parsing response body: {}", e)))),
+        Ok(s) => s,
+    };
+
     Ok(body["articles"].clone())
 }
 
@@ -60,45 +65,25 @@ fn call_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Result<ureq::
     let resp = ureq::get(&url).call();
     match resp {
         Ok(response) => {
-            if response.status() == 200 {
-                println!("Success!");
-                Ok(response)
-            } else {
-                let status = response.status();
-                let body = response.into_string().unwrap();
-                Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("HTTP error, status: {}, body: {}",status,  body))))
+            match response.status() {
+                200 => Ok(response),
+                _ => {
+                    let status = response.status();
+                    let body = response.into_string().unwrap();
+                    Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("HTTP error, status: {}, body: {}",status,  body))))
+                }
             }
         },
-        Err(e) => Err(Box::new(e)),
+        Err(e) => Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Error calling URL: {}", e)))),
     }
 }
-
-fn save_to_csv(articles: Vec<Article>) ->  Result<(), Box<dyn Error>> {
-    let mut wtr = Writer::from_path("articles.csv")?;
-
-
-    // Write headers
-    wtr.write_record(&["url", "url_mobile", "title", "seendate", "socialimage", "domain", "language", "sourcecountry"])?;
-
-    // Write records
-    for article in articles {
-        wtr.write_record(&[&article.url, &article.url_mobile, &article.title, &article.seendate, &article.socialimage, &article.domain, &article.language, &article.sourcecountry])?;
-    }
-
-    // Flush the writer to ensure all data is written to the file
-    wtr.flush()?;
-
-    println!("Articles written to articles.csv");
-    Ok(())
-}
-
-
 
 fn fetch_articles_between(mut start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> Vec<Article> {
     let mut all_articles = vec![];
 
     while start_time > end_time {
         let mut articles: Vec<Article>;
+        // let resp: ureq::Response;
         match call_url(start_time, end_time) {
             Ok(response) => {
                 match extract_articles_from_response(response) {
@@ -118,18 +103,20 @@ fn fetch_articles_between(mut start_time: DateTime<Utc>, end_time: DateTime<Utc>
             },
         }
 
-        // get teh last article in the list
-        println!("articles: {}", articles.len());
+        // get the last article in the vector which is the oldest
+        // replace that timestamp with the start time.
 
-        // what are the tines?
+        // Note what format are the times in?
         // 20230617T204500Z
         // 20230617T130000Z
+        // So we can parse them with something like
+        //    let date = NaiveDateTime::parse_from_str(&last_article.seendate, "%Y%m%dT%H%M%SZ")?;
+        //     let parsed_date = DateTime::from_utc(date, Utc);
 
-        break
+        break // Remove once this works
         // // Sleep for 5 seconds to avoid getting blocked
         // std::thread::sleep(std::time::Duration::from_secs(5));
     }
-
     all_articles
 }
 
@@ -152,3 +139,23 @@ fn update_date(last_article: &Article, yesterday: DateTime<Utc>) -> Result<Optio
         Ok(Some(parsed_date))
     }
 }
+
+fn save_to_csv(articles: Vec<Article>) ->  Result<(), Box<dyn Error>> {
+    let mut wtr = Writer::from_path("articles.csv")?;
+
+
+    // Write headers
+    wtr.write_record(&["url", "url_mobile", "title", "seendate", "socialimage", "domain", "language", "sourcecountry"])?;
+
+    // Write records
+    for article in articles {
+        wtr.write_record(&[&article.url, &article.url_mobile, &article.title, &article.seendate, &article.socialimage, &article.domain, &article.language, &article.sourcecountry])?;
+    }
+
+    // Flush the writer to ensure all data is written to the file
+    wtr.flush()?;
+
+    println!("Articles written to articles.csv");
+    Ok(())
+}
+
