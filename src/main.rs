@@ -1,3 +1,5 @@
+mod core;
+
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
@@ -25,6 +27,7 @@ struct Article {
 }
 
 fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> String {
+    // https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
     let formatted_start_time = start_time.format("%Y%m%d%H%M%S").to_string();
     let formatted_end_time = end_time.format("%Y%m%d%H%M%S").to_string();
 
@@ -37,7 +40,7 @@ fn build_url(start_time: DateTime<Utc>, end_time: DateTime<Utc>) -> String {
     params.insert("enddatetime", &formatted_start_time);
 
     format!(
-        "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode={}&maxrecords={}&format={}&startdatetime={}&enddatetime={}",
+        "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode={}&maxrecords={}&format={}&startdatetime={}&enddatetime={}&sort=datedesc",
         params["query"], params["mode"], params["maxrecords"], params["format"], params["startdatetime"], params["enddatetime"]
     )
 }
@@ -173,3 +176,9 @@ fn save_to_csv(articles: Vec<Article>) ->  Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+
+// https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:french sourcecountry:FR&mode=artlist&maxrecords=250&format=json&startdatetime=20230617125228&enddatetime=20230617133000
+//
+https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:french sourcecountry:FR(%22climate%20change%22%20OR%20%22global%20warming%22)&mode=artlist&maxrecords=250&timespan=1d&sort=datedesc&format=json
+//
+https://api.gdeltproject.org/api/v2/doc/doc?query=sourcelang:french sourcecountry:FR( climate change OR global warming)&mode=artlist&maxrecords=250&timespan=1d&sort=datedesc&format=json
