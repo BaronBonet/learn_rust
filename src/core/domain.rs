@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde_json::error::Category;
-use iso_country::alpha2;
+use isocountry::CountryCode;
 
 pub struct NewsArticle {
   pub title: String,
@@ -9,16 +8,17 @@ pub struct NewsArticle {
   pub url: String,
   pub domain: String,
   pub language: String,
-  pub country: isocountry::alpha2
+  pub country: CountryCode,
 }
 
 pub struct ArticleQuery {
-    pub source_country: isocountry::alpha2,
+    pub source_country: CountryCode,
     pub category: ArticleCategory,
     pub start_datetime: DateTime<Utc>,
     pub end_datetime: DateTime<Utc>,
 }
 
+#[derive(Copy, Clone)]
 pub enum ArticleCategory {
     ClimateChange,
     GlobalWarming,
@@ -31,7 +31,7 @@ impl NewsArticle {
             ArticleCategory::GlobalWarming => "Global Warming",
         }
     }
-    pub fn new(title: String, category: ArticleCategory, date: DateTime<Utc>, url: String, domain: String, language: String, country: iso_country::alpha2) -> Self {
+    pub fn new(title: String, category: ArticleCategory, date: DateTime<Utc>, url: String, domain: String, language: String, country: CountryCode) -> Self {
         Self {
             title,
             category,
@@ -45,7 +45,7 @@ impl NewsArticle {
 }
 
 impl ArticleQuery {
-    pub fn new(source_country: isocountry::alpha2, category: ArticleCategory, start_datetime: DateTime<Utc>, end_datetime: DateTime<Utc>) -> Self {
+    pub fn new(source_country: CountryCode, category: ArticleCategory, start_datetime: DateTime<Utc>, end_datetime: DateTime<Utc>) -> Self {
         Self {
             source_country,
             category,
