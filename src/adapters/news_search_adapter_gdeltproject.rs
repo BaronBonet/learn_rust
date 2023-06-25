@@ -43,7 +43,8 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
                     break;
                 }
             }
-            let mut news_articles = to_news_article(articles, &query.category);
+            let mut news_articles =
+                to_news_article(articles, &query.category, query.source_country);
             match news_articles.len() {
                 0 => {
                     println!("No articles found");
@@ -90,18 +91,26 @@ fn build_url(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     source_country: CountryCode,
+    category: ArticleCategory,
 ) -> String {
     // https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
     let formatted_start_time = start_time.format("%Y%m%d%H%M%S").to_string();
     let formatted_end_time = end_time.format("%Y%m%d%H%M%S").to_string();
-
     let mut params = HashMap::new();
-    params.insert("query", "sourcecountry:FR%20AND%20%22climate%20change%22");
-    params.insert("mode", "artlist");
-    params.insert("maxrecords", "250");
-    params.insert("format", "json");
-    params.insert("startdatetime", &formatted_start_time);
-    params.insert("enddatetime", &formatted_end_time);
+    // TODO implement other categories
+    params.insert(
+        "query",
+        format!(
+            "sourcecountry:{}%20AND%20%22climate%20change%22",
+            source_country.alpha2()
+        )
+        .to_string(),
+    );
+    params.insert("mode", "artlist".to_string());
+    params.insert("maxrecords", "250".to_string());
+    params.insert("format", "json".to_string());
+    params.insert("startdatetime", formatted_start_time.to_string());
+    params.insert("enddatetime", formatted_end_time.to_string());
 
     format!(
         "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode={}&maxrecords={}&format={}&startdatetime={}&enddatetime={}&sort=datedesc",
@@ -162,7 +171,11 @@ fn call_url(
     }
 }
 
-fn to_news_article(articles: Vec<GDeltaArticle>, category: &ArticleCategory) -> Vec<NewsArticle> {
+fn to_news_article(
+    articles: Vec<GDeltaArticle>,
+    category: &ArticleCategory,
+    source_country: CountryCode,
+) -> Vec<NewsArticle> {
     articles
         .iter()
         .filter_map(|element| {
@@ -172,7 +185,7 @@ fn to_news_article(articles: Vec<GDeltaArticle>, category: &ArticleCategory) -> 
                 return None;
             }
 
-            let country = to_country(&element.sourcecountry);
+            let country = to_country(&element.sourcecountry, source_country);
             if country.is_none() {
                 println!("Country not supported: {}", element.sourcecountry);
                 return None;
@@ -196,9 +209,9 @@ fn to_datetime(date: &String) -> Result<DateTime<Utc>, ParseError> {
     Ok(DateTime::<Utc>::from_utc(date, Utc))
 }
 
-fn to_country(country_name: &String) -> Option<CountryCode> {
-    if country_name == ISO_FULL_FRA {
-        return Some(CountryCode::FRA);
+fn to_country(country_name: &String, source_country: CountryCode) -> Option<CountryCode> {
+    if country_name == source_country.name() {
+        return Some(source_country);
     }
     None
 }
@@ -210,9 +223,9 @@ mod tests {
 
     #[test]
     fn test_to_country() {
-        let country = to_country(&"France".to_string());
+        let country = to_country(&"France".to_string(), CountryCode::FRA);
         assert_eq!(country, Some(CountryCode::FRA));
-        let country = to_country(&"Fake".to_string());
+        let country = to_country(&"Fake".to_string(), CountryCode::FRA);
         assert_eq!(country, None);
     }
 
@@ -223,6 +236,17 @@ mod tests {
         assert_eq!(date, d);
         let invalid_date = to_datetime(&"invalid_date".to_string());
         assert!(invalid_date.is_err());
+    }
+
+    #[test]
+    fn test_build_url() {
+        let start_time = Utc.with_ymd_and_hms(2021, 1, 1, 0, 0, 0).unwrap();
+        let end_time = Utc.with_ymd_and_hms(2021, 1, 2, 0, 0, 0).unwrap();
+        let url = build_url(start_time, end_time, CountryCode::FRA);
+        assert_eq!(
+            url,
+            "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry:FR%20AND%20%22climate%20change%22&mode=artlist&maxrecords=250&format=json&startdatetime=20210101000000&enddatetime=20210102000000&sort=datedesc"
+        );
     }
 
     #[test]
@@ -260,7 +284,7 @@ mod tests {
         articles.push(invalid_country_article);
 
         let category = ArticleCategory::ClimateChange;
-        let news_articles = to_news_article(articles, &category);
+        let news_articles = to_news_article(articles, &category, CountryCode::FRA);
 
         assert_eq!(news_articles.len(), 1);
         assert_eq!(news_articles[0].title, "Valid Article");
