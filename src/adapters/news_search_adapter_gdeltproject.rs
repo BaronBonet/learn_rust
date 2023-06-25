@@ -7,6 +7,7 @@ use isocountry::full::{ISO_FULL_FRA, ISO_FULL_GBR};
 use isocountry::{full, CountryCode};
 use std::collections::HashMap;
 use std::error::Error;
+use urlencoding::encode;
 
 pub struct GDeltaProjectNewsSearchAdapter {}
 
@@ -24,7 +25,12 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
             println!("{}", start_time);
             println!("{}", query.end_datetime);
             let resp: ureq::Response;
-            match call_url(start_time, query.end_datetime, query.source_country) {
+            match call_url(
+                start_time,
+                query.end_datetime,
+                query.source_country,
+                query.category,
+            ) {
                 Ok(response) => {
                     resp = response;
                 }
@@ -51,6 +57,7 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
                     break;
                 }
                 1..=249 => {
+                    println!("Less than 250 articles found");
                     all_articles.append(&mut news_articles);
                     break;
                 }
@@ -93,28 +100,20 @@ fn build_url(
     source_country: CountryCode,
     category: ArticleCategory,
 ) -> String {
-    // https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
     let formatted_start_time = start_time.format("%Y%m%d%H%M%S").to_string();
     let formatted_end_time = end_time.format("%Y%m%d%H%M%S").to_string();
-    let mut params = HashMap::new();
-    // TODO implement other categories
-    params.insert(
-        "query",
-        format!(
-            "sourcecountry:{}%20AND%20%22climate%20change%22",
-            source_country.alpha2()
-        )
-        .to_string(),
+
+    let query = format!(
+        "sourcecountry:{} AND \"{}\"",
+        source_country.alpha2(),
+        category.to_string()
     );
-    params.insert("mode", "artlist".to_string());
-    params.insert("maxrecords", "250".to_string());
-    params.insert("format", "json".to_string());
-    params.insert("startdatetime", formatted_start_time.to_string());
-    params.insert("enddatetime", formatted_end_time.to_string());
+
+    let query = encode(&query);
 
     format!(
-        "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode={}&maxrecords={}&format={}&startdatetime={}&enddatetime={}&sort=datedesc",
-        params["query"], params["mode"], params["maxrecords"], params["format"], params["startdatetime"], params["enddatetime"]
+        "https://api.gdeltproject.org/api/v2/doc/doc?query={}&mode=artlist&maxrecords=250&format=json&startdatetime={}&enddatetime={}&sort=datedesc",
+        query, formatted_start_time, formatted_end_time
     )
 }
 
@@ -147,9 +146,10 @@ fn call_url(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     source_country: CountryCode,
+    category: ArticleCategory,
 ) -> Result<ureq::Response, Box<dyn Error>> {
-    // Start time must be before end time
-    let url = build_url(start_time, end_time, source_country);
+    // TODO dynamci category
+    let url = build_url(start_time, end_time, source_country, category);
     println!("Fetching articles from {}... ", url);
     let resp = ureq::get(&url).call();
     match resp {
@@ -242,10 +242,15 @@ mod tests {
     fn test_build_url() {
         let start_time = Utc.with_ymd_and_hms(2021, 1, 1, 0, 0, 0).unwrap();
         let end_time = Utc.with_ymd_and_hms(2021, 1, 2, 0, 0, 0).unwrap();
-        let url = build_url(start_time, end_time, CountryCode::FRA);
+        let url = build_url(
+            start_time,
+            end_time,
+            CountryCode::FRA,
+            ArticleCategory::ClimateChange,
+        );
         assert_eq!(
             url,
-            "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry:FR%20AND%20%22climate%20change%22&mode=artlist&maxrecords=250&format=json&startdatetime=20210101000000&enddatetime=20210102000000&sort=datedesc"
+            "https://api.gdeltproject.org/api/v2/doc/doc?query=sourcecountry%3AFR%20AND%20%22climate%20change%22&mode=artlist&maxrecords=250&format=json&startdatetime=20210101000000&enddatetime=20210102000000&sort=datedesc"
         );
     }
 
