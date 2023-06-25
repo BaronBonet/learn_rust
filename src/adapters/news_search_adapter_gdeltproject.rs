@@ -66,6 +66,9 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
                     println!("Latest article date: {}", t);
                     if t == start_time {
                         println!("Latest article date is the same as start_time adding one second");
+                        // TODO this is a bit of a hack becase if there are more than 250 articles with the same datetime then we will never get the ones beyond 250
+                        //  There may be ways around this we will have to play with the api
+                        //  This should be logged with a warning
                         start_time = t + chrono::Duration::seconds(1);
                     } else {
                         start_time = t;
@@ -148,26 +151,19 @@ fn call_url(
     source_country: CountryCode,
     category: ArticleCategory,
 ) -> Result<ureq::Response, Box<dyn Error>> {
-    // TODO dynamci category
     let url = build_url(start_time, end_time, source_country, category);
     println!("Fetching articles from {}... ", url);
-    let resp = ureq::get(&url).call();
-    match resp {
-        Ok(response) => match response.status() {
-            200 => Ok(response),
-            _ => {
-                let status = response.status();
-                let body = response.into_string().unwrap();
-                Err(Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("HTTP error, status: {}, body: {}", status, body),
-                )))
-            }
-        },
-        Err(e) => Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Error calling URL: {}", e),
-        ))),
+    let resp = ureq::get(&url).call()?;
+
+    match resp.status() {
+        200 => Ok(resp),
+        status => {
+            let body = resp.into_string().unwrap();
+            Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("HTTP error, status: {}, body: {}", status, body),
+            )))
+        }
     }
 }
 
