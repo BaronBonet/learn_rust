@@ -43,7 +43,6 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
                     break;
                 }
             }
-            println!("Number of articles before match: {}", articles.len());
             let mut news_articles = to_news_article(articles, &query.category);
             match news_articles.len() {
                 0 => {
