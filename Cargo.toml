@@ -13,5 +13,6 @@ serde_derive = "1.0.164"
 csv = "1.2.2"
 isocountry = "0.3.2"
 urlencoding = "2.1.2"
-sqlx { version = "0.6.3", featurs = ["postgres"] }
+sqlx = { version = "0.6.3", features = ["postgres", "runtime-tokio-rustls", "chrono"] }
+tokio = { version = "1", features = ["full"] }
 

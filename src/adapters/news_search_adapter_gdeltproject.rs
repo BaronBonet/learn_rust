@@ -1,5 +1,5 @@
 use crate::core::domain::{ArticleCategory, ArticleQuery, NewsArticle};
-use crate::core::ports::N;
+use crate::core::ports::NewsSearchAdapter;
 use chrono::format::ParseError;
 use chrono::prelude::*;
 use chrono::{DateTime, NaiveDateTime, Utc};

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use isocountry::CountryCode;
 
+#[derive(Debug)]
 pub struct NewsArticle {
     pub title: String,
     pub category: ArticleCategory,
@@ -11,6 +12,7 @@ pub struct NewsArticle {
     pub country: CountryCode,
 }
 
+#[derive(Debug)]
 pub struct ArticleQuery {
     pub source_country: CountryCode,
     pub category: ArticleCategory,
@@ -18,7 +20,7 @@ pub struct ArticleQuery {
     pub end_datetime: DateTime<Utc>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ArticleCategory {
     ClimateChange,
     GlobalWarming,
