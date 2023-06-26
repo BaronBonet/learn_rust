@@ -1,5 +1,5 @@
 use crate::core::domain::{ArticleCategory, ArticleQuery, NewsArticle};
-use crate::core::ports::NewsSearchAdapter;
+use crate::core::ports::N;
 use chrono::format::ParseError;
 use chrono::prelude::*;
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -24,21 +24,19 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
         while start_time < query.end_datetime {
             println!("{}", start_time);
             println!("{}", query.end_datetime);
-            let resp: ureq::Response;
-            match call_url(
+            let resp = match call_url(
                 start_time,
                 query.end_datetime,
                 query.source_country,
                 query.category,
             ) {
-                Ok(response) => {
-                    resp = response;
-                }
+                Ok(response) => response,
                 Err(err) => {
                     println!("Error calling URL: {}", err);
-                    break;
+                    break; // Skip this iteration and continue with the next one.
                 }
-            }
+            };
+
             let articles: Vec<GDeltaArticle>;
             match extract_articles_from_response(resp) {
                 Ok(ars) => {
@@ -61,6 +59,7 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
                     all_articles.append(&mut news_articles);
                     break;
                 }
+                // Since we hard code 250 results from the api
                 250.. => {
                     let t = news_articles.last().unwrap().date;
                     println!("Latest article date: {}", t);
