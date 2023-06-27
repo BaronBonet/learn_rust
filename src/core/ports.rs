@@ -1,4 +1,5 @@
 use crate::core::domain::{ArticleQuery, DateRange, NewsArticle};
+use async_trait::async_trait;
 
 pub trait NewsService {
     // Retrieves articles from the repository with the provided categories
@@ -19,9 +20,17 @@ pub trait NewsSearchClient {
     fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle>;
 }
 
+#[async_trait]
 pub trait NewsRepository {
-    fn get_articles_with_categories(&self, category: Vec<String>) -> Vec<NewsArticle>;
-    fn store_articles(&self, articles: Vec<NewsArticle>) -> i32;
-    fn add_category(&self, category: String) -> bool;
-    fn is_valid_category(&self, category: String) -> bool;
+    async fn get_articles_with_categories(
+        &self,
+        categories: Vec<String>,
+    ) -> Result<Vec<NewsArticle>, Box<dyn std::error::Error>>;
+    async fn store_articles(
+        &self,
+        articles: Vec<NewsArticle>,
+    ) -> Result<i32, Box<dyn std::error::Error>>;
+    async fn add_category(&self, category: String) -> Result<bool, Box<dyn std::error::Error>>;
+    async fn is_valid_category(&self, category: String)
+        -> Result<bool, Box<dyn std::error::Error>>;
 }

@@ -1,79 +1,42 @@
 mod adapters;
 mod core;
+mod infrastructure;
 
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
 extern crate serde_json;
 extern crate ureq;
-use sqlx::types::chrono::NaiveDateTime;
+use std::env;
 
 use crate::adapters::news_search_client_gdeltproject::GDeltaProjectNewsSearchAdapter;
 use crate::chrono::Utc;
 use crate::core::domain::{ArticleQuery, NewsArticle};
-use crate::core::ports::NewsSearchClient;
+use crate::core::ports::{NewsRepository, NewsSearchClient};
 use csv::Writer;
-use isocountry::CountryCode;
 use std::error::Error;
-
-use sqlx::{PgPool, Row};
-// use anyhow::Result;
-// use chrono::NaiveDateTime; // remember to add "chrono" as a dependency in your Cargo.toml
-
-async fn get_articles_with_category(
-    pool: &PgPool,
-    category: &str,
-) -> Result<Vec<NewsArticle>, sqlx::Error> {
-    let rows = sqlx::query(
-        r#"
-        SELECT news_articles.*, news_article_categories.category_name
-        FROM news_articles
-        JOIN news_article_categories ON news_articles.id = news_article_categories.news_article_id
-        WHERE news_article_categories.category_name = $1
-        "#,
-    )
-    .bind(category)
-    .fetch_all(pool)
-    .await?;
-
-    let articles = rows
-        .into_iter()
-        .map(|row| {
-            let country_str: String = row.get("country");
-            // TODO error handling for country code
-            let country_code = CountryCode::for_alpha3(&country_str).unwrap();
-
-            NewsArticle {
-                title: row.get("title"),
-                category: row.get("category_name"),
-                domain: row.get("domain"),
-                country: country_code,
-                url: row.get("url"),
-                language: row.get("language"),
-                date: row.get("seen_at"),
-            }
-        })
-        .collect();
-
-    Ok(articles)
-}
 
 #[tokio::main]
 
 async fn main() {
-    let pool = PgPool::connect("postgres://postgres:postgres@localhost:15432/postgres")
+    // in main.rs
+    let db_user = env::var("POSTGRES_USER").unwrap_or_else(|_| String::from("postgres"));
+    let db_password = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| String::from("postgres"));
+    let db_name = env::var("POSTGRES_DB").unwrap_or_else(|_| String::from("postgres"));
+    let db_host = env::var("DB_HOST").unwrap_or_else(|_| String::from("localhost"));
+    let db_port = env::var("DB_PORT").unwrap_or_else(|_| String::from("5432"));
+
+    let pool =
+        infrastructure::postgres::get_db_pool(db_user, db_password, db_name, db_host, db_port)
+            .await
+            .expect("Failed to connect to Postgres");
+
+    let repo = adapters::news_repository_postgres::PostgresNewsRepository::new(pool);
+    let added = repo
+        .add_category("ClimateChange".to_string())
         .await
-        .expect("Failed to connect to Postgres");
-    match get_articles_with_category(&pool, "climate change").await {
-        Ok(articles) => {
-            for article in articles {
-                println!("{:?}", article);
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to get articles: {}", e);
-        }
-    };
+        .expect("Failed to add category");
+    println!("Added category: {}", added);
 
     //     let g_delta_project_adapter = GDeltaProjectNewsSearchAdapter {};
     //     let end_datetime = Utc::now();
