@@ -32,10 +32,10 @@ services:
   dummy_data_loader:
     image: postgres:14.5
     volumes:
-      - ./development:/development
+      - ./local:/local
     depends_on:
       - migrations
     command: >
-      bash -c "psql $$DATABASE_URL < /development/dummy_data.sql"
+      bash -c "psql $$DATABASE_URL < /local/dummy_data.sql"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres

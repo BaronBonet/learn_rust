@@ -8,7 +8,7 @@ extern crate serde_json;
 extern crate ureq;
 use sqlx::types::chrono::NaiveDateTime;
 
-use crate::adapters::news_search_adapter_gdeltproject::GDeltaProjectNewsSearchAdapter;
+use crate::adapters::news_search_client_gdeltproject::GDeltaProjectNewsSearchAdapter;
 use crate::chrono::Utc;
 use crate::core::domain::{ArticleQuery, NewsArticle};
 use crate::core::ports::NewsSearchClient;

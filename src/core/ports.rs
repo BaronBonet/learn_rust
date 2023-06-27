@@ -22,4 +22,6 @@ pub trait NewsSearchClient {
 pub trait NewsRepository {
     fn get_articles_with_categories(&self, category: Vec<String>) -> Vec<NewsArticle>;
     fn store_articles(&self, articles: Vec<NewsArticle>) -> i32;
+    fn add_category(&self, category: String) -> bool;
+    fn is_valid_category(&self, category: String) -> bool;
 }
