@@ -17,3 +17,6 @@ CREATE TABLE news_article_categories (
      category_name TEXT REFERENCES categories(name),
      PRIMARY KEY (news_article_id, category_name)
 );
+
+ALTER TABLE news_articles
+    ADD CONSTRAINT unique_article UNIQUE(title, domain, seen_at, country);

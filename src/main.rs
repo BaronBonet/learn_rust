@@ -45,8 +45,10 @@ async fn main() {
         start_datetime,
         end_datetime,
     );
-    let articles = news_service.fetch_and_store_articles(q);
-    println!("Articles written to articles");
+    let articles = news_service.fetch_and_store_articles(q).await;
+    for article in articles {
+        println!("{}", article);
+    }
 
     //     let end_datetime = Utc::now();
     //     let start_datetime = end_datetime - chrono::Duration::days(1);

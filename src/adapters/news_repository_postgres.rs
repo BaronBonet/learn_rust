@@ -119,7 +119,7 @@ async fn insert_article(
     match sqlx::query_as(
         "INSERT INTO news_articles (title, domain, country, seen_at, url, language) 
         VALUES ($1, $2, $3, $4, $5, $6) 
-        ON CONFLICT (url) DO NOTHING RETURNING id",
+        ON CONFLICT (title, domain, country, seen_at) DO NOTHING RETURNING id",
     )
     .bind(&article.title)
     .bind(&article.domain)
@@ -132,10 +132,16 @@ async fn insert_article(
     {
         Some((id,)) => Ok(id),
         None => {
-            let id: (i32,) = sqlx::query_as("SELECT id FROM news_articles WHERE url = $1")
-                .bind(&article.url)
-                .fetch_one(&mut *tx)
-                .await?;
+            let id: (i32,) = sqlx::query_as(
+                "SELECT id FROM news_articles
+                WHERE title = $1 AND domain = $2 AND country = $3 AND seen_at = $4",
+            )
+            .bind(&article.title)
+            .bind(&article.domain)
+            .bind(article.country.alpha3())
+            .bind(&article.date)
+            .fetch_one(&mut *tx)
+            .await?;
             Ok(id.0)
         }
     }
