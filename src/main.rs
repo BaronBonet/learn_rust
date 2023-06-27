@@ -14,6 +14,7 @@ use crate::chrono::Utc;
 use crate::core::domain::{ArticleQuery, NewsArticle};
 use crate::core::ports::{NewsRepository, NewsSearchClient};
 use csv::Writer;
+use isocountry::CountryCode;
 use std::error::Error;
 
 #[tokio::main]
@@ -32,13 +33,21 @@ async fn main() {
             .expect("Failed to connect to Postgres");
 
     let repo = adapters::news_repository_postgres::PostgresNewsRepository::new(pool);
-    let added = repo
-        .add_category("ClimateChange".to_string())
-        .await
-        .expect("Failed to add category");
-    println!("Added category: {}", added);
 
-    //     let g_delta_project_adapter = GDeltaProjectNewsSearchAdapter {};
+    let g_delta_project_adapter = GDeltaProjectNewsSearchAdapter::new();
+    let news_service =
+        core::service::NewsService::new(Box::new(repo), Box::new(g_delta_project_adapter));
+    let end_datetime = Utc::now();
+    let start_datetime = end_datetime - chrono::Duration::days(1);
+    let q = ArticleQuery::new(
+        CountryCode::FRA,
+        "climate change".to_string(),
+        start_datetime,
+        end_datetime,
+    );
+    let articles = news_service.fetch_and_store_articles(q);
+    println!("Articles written to articles");
+
     //     let end_datetime = Utc::now();
     //     let start_datetime = end_datetime - chrono::Duration::days(1);
     //     let q = ArticleQuery::new(

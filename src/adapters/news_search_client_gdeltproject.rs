@@ -10,6 +10,11 @@ use std::error::Error;
 use urlencoding::encode;
 
 pub struct GDeltaProjectNewsSearchAdapter {}
+impl GDeltaProjectNewsSearchAdapter {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
 impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
     fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle> {

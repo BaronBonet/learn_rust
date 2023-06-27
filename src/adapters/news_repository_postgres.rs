@@ -3,7 +3,7 @@ use crate::core::ports::NewsRepository;
 use async_trait::async_trait;
 use isocountry::CountryCode;
 use sqlx::types::chrono::NaiveDateTime;
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 
 pub struct PostgresNewsRepository {
     pool: PgPool,
@@ -60,35 +60,33 @@ impl NewsRepository for PostgresNewsRepository {
         articles: Vec<NewsArticle>,
     ) -> Result<i32, Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
+        let mut num_inserted = 0;
 
         for article in &articles {
-            let row: (i32,) = sqlx::query_as(
-                "INSERT INTO news_articles (title, domain, country, seen_at, url, language) 
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-            )
-            .bind(&article.title)
-            .bind(&article.domain)
-            .bind(article.country.alpha3())
-            .bind(&article.date)
-            .bind(&article.url)
-            .bind(&article.language)
-            .fetch_one(&mut tx)
-            .await?;
-
-            // Insert into news_article_categories table using the new article's ID
-            sqlx::query(
-                "INSERT INTO news_article_categories (news_article_id, category_name) 
-             VALUES ($1, $2)",
-            )
-            .bind(row.0)
-            .bind(&article.category)
-            .execute(&mut tx)
-            .await?;
+            match insert_article(&mut tx, article).await {
+                Ok(id) => {
+                    sqlx::query(
+                        "INSERT INTO news_article_categories (news_article_id, category_name) 
+                    VALUES ($1, $2)",
+                    )
+                    .bind(id)
+                    .bind(&article.category)
+                    .execute(&mut tx)
+                    .await?;
+                    num_inserted += 1;
+                }
+                Err(e) => {
+                    println!(
+                        "Error inserting article: \n error:{} \n article: {}",
+                        e, article.title
+                    );
+                }
+            }
         }
 
         tx.commit().await?;
 
-        Ok(articles.len() as i32)
+        Ok(num_inserted)
     }
 
     async fn add_category(&self, category: String) -> Result<bool, Box<dyn std::error::Error>> {
@@ -111,5 +109,34 @@ impl NewsRepository for PostgresNewsRepository {
             .await?;
 
         Ok(row.0 > 0)
+    }
+}
+
+async fn insert_article(
+    tx: &mut Transaction<'_, Postgres>,
+    article: &NewsArticle,
+) -> Result<i32, sqlx::Error> {
+    match sqlx::query_as(
+        "INSERT INTO news_articles (title, domain, country, seen_at, url, language) 
+        VALUES ($1, $2, $3, $4, $5, $6) 
+        ON CONFLICT (url) DO NOTHING RETURNING id",
+    )
+    .bind(&article.title)
+    .bind(&article.domain)
+    .bind(article.country.alpha3())
+    .bind(&article.date)
+    .bind(&article.url)
+    .bind(&article.language)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        Some((id,)) => Ok(id),
+        None => {
+            let id: (i32,) = sqlx::query_as("SELECT id FROM news_articles WHERE url = $1")
+                .bind(&article.url)
+                .fetch_one(&mut *tx)
+                .await?;
+            Ok(id.0)
+        }
     }
 }
