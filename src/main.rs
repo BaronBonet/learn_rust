@@ -24,7 +24,7 @@ async fn main() {
     let db_password = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| String::from("postgres"));
     let db_name = env::var("POSTGRES_DB").unwrap_or_else(|_| String::from("postgres"));
     let db_host = env::var("DB_HOST").unwrap_or_else(|_| String::from("localhost"));
-    let db_port = env::var("DB_PORT").unwrap_or_else(|_| String::from("5432"));
+    let db_port = env::var("DB_PORT").unwrap_or_else(|_| String::from("15432"));
 
     let pool =
         infrastructure::postgres::get_db_pool(db_user, db_password, db_name, db_host, db_port)
