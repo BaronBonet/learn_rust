@@ -1,5 +1,5 @@
-use crate::core::domain::{ArticleCategory, ArticleQuery, NewsArticle};
-use crate::core::ports::NewsSearchAdapter;
+use crate::core::domain::{ArticleQuery, NewsArticle};
+use crate::core::ports::NewsSearchClient;
 use chrono::format::ParseError;
 use chrono::prelude::*;
 use chrono::{DateTime, NaiveDateTime, Utc};
@@ -11,7 +11,7 @@ use urlencoding::encode;
 
 pub struct GDeltaProjectNewsSearchAdapter {}
 
-impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
+impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
     fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle> {
         let mut start_time = query.start_datetime;
         println!(
@@ -28,7 +28,7 @@ impl NewsSearchAdapter for GDeltaProjectNewsSearchAdapter {
                 start_time,
                 query.end_datetime,
                 query.source_country,
-                query.category,
+                query.category.to_string(),
             ) {
                 Ok(response) => response,
                 Err(err) => {
@@ -100,7 +100,7 @@ fn build_url(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     source_country: CountryCode,
-    category: ArticleCategory,
+    category: String,
 ) -> String {
     let formatted_start_time = start_time.format("%Y%m%d%H%M%S").to_string();
     let formatted_end_time = end_time.format("%Y%m%d%H%M%S").to_string();
@@ -108,7 +108,7 @@ fn build_url(
     let query = format!(
         "sourcecountry:{} AND \"{}\"",
         source_country.alpha2(),
-        category.to_string()
+        category
     );
 
     let query = encode(&query);
@@ -148,7 +148,7 @@ fn call_url(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
     source_country: CountryCode,
-    category: ArticleCategory,
+    category: String,
 ) -> Result<ureq::Response, Box<dyn Error>> {
     let url = build_url(start_time, end_time, source_country, category);
     println!("Fetching articles from {}... ", url);
@@ -168,7 +168,7 @@ fn call_url(
 
 fn to_news_article(
     articles: Vec<GDeltaArticle>,
-    category: &ArticleCategory,
+    category: &String,
     source_country: CountryCode,
 ) -> Vec<NewsArticle> {
     articles
@@ -188,7 +188,7 @@ fn to_news_article(
 
             Some(NewsArticle {
                 title: element.title.clone(),
-                category: *category,
+                category: category.to_string(),
                 date: date.unwrap().into(),
                 url: element.url.clone(),
                 domain: element.domain.clone(),

@@ -10,8 +10,8 @@ use sqlx::types::chrono::NaiveDateTime;
 
 use crate::adapters::news_search_adapter_gdeltproject::GDeltaProjectNewsSearchAdapter;
 use crate::chrono::Utc;
-use crate::core::domain::{ArticleCategory, ArticleQuery, NewsArticle};
-use crate::core::ports::NewsSearchAdapter;
+use crate::core::domain::{ArticleQuery, NewsArticle};
+use crate::core::ports::NewsSearchClient;
 use csv::Writer;
 use isocountry::CountryCode;
 use std::error::Error;
@@ -40,12 +40,12 @@ async fn get_articles_with_category(
         .into_iter()
         .map(|row| {
             let country_str: String = row.get("country");
+            // TODO error handling for country code
             let country_code = CountryCode::for_alpha3(&country_str).unwrap();
 
             NewsArticle {
                 title: row.get("title"),
-                // category: row.get("category_name"),
-                category: ArticleCategory::ClimateChange,
+                category: row.get("category_name"),
                 domain: row.get("domain"),
                 country: country_code,
                 url: row.get("url"),

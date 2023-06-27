@@ -4,7 +4,7 @@ use isocountry::CountryCode;
 #[derive(Debug)]
 pub struct NewsArticle {
     pub title: String,
-    pub category: ArticleCategory,
+    pub category: String,
     pub date: DateTime<Utc>,
     pub url: String,
     pub domain: String,
@@ -15,30 +15,15 @@ pub struct NewsArticle {
 #[derive(Debug)]
 pub struct ArticleQuery {
     pub source_country: CountryCode,
-    pub category: ArticleCategory,
+    pub category: String,
     pub start_datetime: DateTime<Utc>,
     pub end_datetime: DateTime<Utc>,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum ArticleCategory {
-    ClimateChange,
-    GlobalWarming,
-}
-
-impl ArticleCategory {
-    pub fn to_string(&self) -> String {
-        match self {
-            ArticleCategory::ClimateChange => String::from("climate change"),
-            ArticleCategory::GlobalWarming => String::from("global warming"),
-        }
-    }
 }
 
 impl NewsArticle {
     pub fn new(
         title: String,
-        category: ArticleCategory,
+        category: String,
         date: DateTime<Utc>,
         url: String,
         domain: String,
@@ -60,7 +45,7 @@ impl NewsArticle {
 impl ArticleQuery {
     pub fn new(
         source_country: CountryCode,
-        category: ArticleCategory,
+        category: String,
         start_datetime: DateTime<Utc>,
         end_datetime: DateTime<Utc>,
     ) -> Self {
@@ -69,6 +54,24 @@ impl ArticleQuery {
             category,
             start_datetime,
             end_datetime,
+        }
+    }
+}
+
+pub struct DateRange {
+    start_date: DateTime<Utc>,
+    end_date: DateTime<Utc>,
+}
+
+impl DateRange {
+    pub fn new(start_date: DateTime<Utc>, end_date: DateTime<Utc>) -> Result<Self, &'static str> {
+        if start_date <= end_date {
+            Ok(Self {
+                start_date,
+                end_date,
+            })
+        } else {
+            Err("End date must not be before the start date")
         }
     }
 }

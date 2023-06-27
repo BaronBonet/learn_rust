@@ -3,7 +3,7 @@ CREATE TABLE news_articles (
    title TEXT,
    domain TEXT,
    country TEXT,
-   seen_at TIMESTAMP,
+   seen_at timestamptz,
    url TEXT NOT NULL,
    language TEXT
 );
