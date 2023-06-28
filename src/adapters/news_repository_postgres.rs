@@ -1,4 +1,5 @@
 use crate::core::domain::NewsArticle;
+use crate::core::ports;
 use crate::core::ports::NewsRepository;
 use async_trait::async_trait;
 use isocountry::CountryCode;
@@ -7,11 +8,12 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 
 pub struct PostgresNewsRepository {
     pool: PgPool,
+    logger: Box<dyn ports::Logger>,
 }
 
 impl PostgresNewsRepository {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool, logger: Box<dyn ports::Logger>) -> Self {
+        Self { pool, logger }
     }
 }
 
@@ -67,7 +69,7 @@ impl NewsRepository for PostgresNewsRepository {
                 Ok(id) => {
                     sqlx::query(
                         "INSERT INTO news_article_categories (news_article_id, category_name) 
-                    VALUES ($1, $2)",
+                    VALUES ($1, $2) ON CONFLICT DO NOTHING",
                     )
                     .bind(id)
                     .bind(&article.category)
@@ -76,13 +78,18 @@ impl NewsRepository for PostgresNewsRepository {
                     num_inserted += 1;
                 }
                 Err(e) => {
-                    println!(
-                        "Error inserting article: \n error:{} \n article: {}",
-                        e, article.title
+                    self.logger.error(
+                        format!(
+                            "Error inserting article: \n error: {} \n article: {}",
+                            e, article.title
+                        )
+                        .as_str(),
                     );
                 }
             }
         }
+        self.logger
+            .debug(format!("Attempting to insert {} articles", num_inserted).as_str());
 
         tx.commit().await?;
 

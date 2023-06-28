@@ -35,7 +35,8 @@ pub trait NewsRepository {
         -> Result<bool, Box<dyn std::error::Error>>;
 }
 
-pub trait Logger {
+pub trait Logger: Send + Sync {
+    fn debug(&self, msg: &str);
     fn info(&self, msg: &str);
     fn warn(&self, msg: &str);
     fn error(&self, msg: &str);

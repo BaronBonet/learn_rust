@@ -35,7 +35,7 @@ services:
       - ./local:/local
     depends_on:
       - migrations
-    command: >
-      bash -c "psql $$DATABASE_URL < /local/dummy_data.sql"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+    command: >
+      bash -c "psql $$DATABASE_URL < /local/dummy_data.sql"

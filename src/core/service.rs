@@ -1,16 +1,15 @@
 use crate::core::domain::{ArticleQuery, NewsArticle};
 use crate::core::ports;
-use crate::core::ports::{NewsRepository, NewsSearchClient};
 
 pub struct NewsService {
-    news_repository: Box<dyn NewsRepository>,
-    news_search_client: Box<dyn NewsSearchClient>,
+    news_repository: Box<dyn ports::NewsRepository>,
+    news_search_client: Box<dyn ports::NewsSearchClient>,
 }
 
 impl NewsService {
     pub fn new(
-        news_repository: Box<dyn NewsRepository>,
-        news_search_client: Box<dyn NewsSearchClient>,
+        news_repository: Box<dyn ports::NewsRepository>,
+        news_search_client: Box<dyn ports::NewsSearchClient>,
     ) -> Self {
         Self {
             news_repository,
@@ -46,7 +45,6 @@ impl NewsService {
     ) -> Result<i32, Box<dyn std::error::Error>> {
         println!("starting fetch and store articles");
         let articles = self.news_search_client.query_for_articles(query);
-        println!("articles: {:?}", articles);
         self.news_repository.store_articles(articles).await
     }
 }

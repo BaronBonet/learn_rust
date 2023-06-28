@@ -1,42 +1,49 @@
 use crate::core::ports;
-use crate::core::ports::Logger;
 use slog::Logger as SlogLogger;
 use slog::{o, Drain};
 use std::process;
+use std::sync::{Arc, Mutex};
 
+#[derive(Clone)]
 pub struct SlogLoggerAdapter {
-    logger: SlogLogger,
+    logger: Arc<Mutex<slog::Logger>>,
 }
 
 impl SlogLoggerAdapter {
     pub fn new() -> Self {
-        // Create a synchronous logger drain
         let decorator = slog_term::TermDecorator::new().build();
         let drain = slog_term::FullFormat::new(decorator).build().fuse();
 
-        // Create an asynchronous logger drain
         let drain = slog_async::Async::new(drain).build().fuse();
+        let logger = Arc::new(Mutex::new(slog::Logger::root(drain, o!())));
 
-        // Create the root logger
-        let log = SlogLogger::root(drain, o!());
-        Self { logger: log }
+        Self { logger }
     }
 }
 
-impl Logger for SlogLoggerAdapter {
+impl ports::Logger for SlogLoggerAdapter {
+    fn debug(&self, msg: &str) {
+        let logger = self.logger.lock().unwrap();
+        slog::debug!(logger, "{}", msg);
+    }
+
     fn info(&self, msg: &str) {
-        slog::info!(self.logger, "{}", msg);
+        let logger = self.logger.lock().unwrap();
+        slog::info!(logger, "{}", msg);
     }
 
     fn warn(&self, msg: &str) {
-        slog::warn!(self.logger, "{}", msg);
+        let logger = self.logger.lock().unwrap();
+        slog::warn!(logger, "{}", msg);
     }
 
     fn error(&self, msg: &str) {
-        slog::error!(self.logger, "{}", msg);
+        let logger = self.logger.lock().unwrap();
+        slog::error!(logger, "{}", msg);
     }
     fn fatal(&self, msg: &str) {
-        slog::crit!(self.logger, "{}", msg);
+        let logger = self.logger.lock().unwrap();
+        slog::crit!(logger, "{}", msg);
         process::exit(1);
     }
 }
