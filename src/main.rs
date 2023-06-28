@@ -35,6 +35,7 @@ async fn main() {
         infrastructure::postgres::get_db_pool(db_user, db_password, db_name, db_host, db_port)
             .await
             .expect("Failed to connect to Postgres");
+    logger.info("Successfully connected to Postgres");
 
     let repo =
         adapters::news_repository_postgres::PostgresNewsRepository::new(pool, logger.clone());
@@ -48,8 +49,9 @@ async fn main() {
     ));
 
     // psudo code
-    // let rest_handler = handlers::rest::RestHandler::new(news_service, logger.clone(), "3000");
-    // rest_handler.start().await.unwrap();
+    let rest_handler =
+        handlers::rest::RestHandler::new(news_service, logger.clone(), "3000".to_string());
+    rest_handler.start().await.unwrap();
 }
 // let end_datetime = Utc::now();
 // let start_datetime = end_datetime - chrono::Duration::days(1);

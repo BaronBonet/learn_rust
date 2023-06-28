@@ -3,7 +3,7 @@ use crate::core::service;
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait NewsService: Send {
+pub trait NewsService: Send + Sync {
     // Retrieves articles from the repository with the provided categories
     async fn get_articles_with_categories(
         &self,
