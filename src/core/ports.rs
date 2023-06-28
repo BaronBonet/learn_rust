@@ -34,3 +34,10 @@ pub trait NewsRepository {
     async fn is_valid_category(&self, category: String)
         -> Result<bool, Box<dyn std::error::Error>>;
 }
+
+pub trait Logger {
+    fn info(&self, msg: &str);
+    fn warn(&self, msg: &str);
+    fn error(&self, msg: &str);
+    fn fatal(&self, msg: &str);
+}
