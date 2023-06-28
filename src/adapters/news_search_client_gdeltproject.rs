@@ -1,4 +1,5 @@
 use crate::core::domain::{ArticleQuery, NewsArticle};
+use crate::core::ports;
 use crate::core::ports::NewsSearchClient;
 use chrono::format::ParseError;
 use chrono::prelude::*;
@@ -9,26 +10,29 @@ use std::collections::HashMap;
 use std::error::Error;
 use urlencoding::encode;
 
-pub struct GDeltaProjectNewsSearchAdapter {}
+pub struct GDeltaProjectNewsSearchAdapter {
+    logger: Box<dyn ports::Logger>,
+}
 impl GDeltaProjectNewsSearchAdapter {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(logger: Box<dyn ports::Logger>) -> Self {
+        Self { logger }
     }
 }
 
 impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
     fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle> {
         let mut start_time = query.start_datetime;
-        println!(
-            "Fetching articles between {} and {}...",
-            start_time.format("%Y-%m-%d %H:%M:%S"),
-            query.end_datetime.format("%Y-%m-%d %H:%M:%S")
+        self.logger.debug(
+            format!(
+                "Fetching articles between {} and {}...",
+                start_time.format("%Y-%m-%d %H:%M:%S"),
+                query.end_datetime.format("%Y-%m-%d %H:%M:%S")
+            )
+            .as_str(),
         );
         let mut all_articles: Vec<NewsArticle> = vec![];
 
         while start_time < query.end_datetime {
-            println!("{}", start_time);
-            println!("{}", query.end_datetime);
             let resp = match call_url(
                 start_time,
                 query.end_datetime,
@@ -37,7 +41,8 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
             ) {
                 Ok(response) => response,
                 Err(err) => {
-                    println!("Error calling URL: {}", err);
+                    self.logger
+                        .warn(format!("Error calling URL: {}", err).as_str());
                     break; // Skip this iteration and continue with the next one.
                 }
             };
@@ -48,7 +53,8 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                     articles = ars;
                 }
                 Err(err) => {
-                    println!("Error extracting articles: {err}");
+                    self.logger.warn("Error extracting articles: {err}");
+
                     break;
                 }
             }
@@ -56,20 +62,23 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                 to_news_article(articles, &query.category, query.source_country);
             match news_articles.len() {
                 0 => {
-                    println!("No articles found");
+                    self.logger.debug("No articles found");
                     break;
                 }
                 1..=249 => {
-                    println!("Less than 250 articles found");
+                    self.logger.debug("Less than 250 articles found");
                     all_articles.append(&mut news_articles);
                     break;
                 }
                 // Since we hard code 250 results from the api
                 250.. => {
                     let t = news_articles.last().unwrap().date;
-                    println!("Latest article date: {}", t);
+                    self.logger
+                        .debug(format!("Latest article date: {}", t).as_str());
                     if t == start_time {
-                        println!("Latest article date is the same as start_time adding one second");
+                        self.logger.warn(
+                            "Latest article date is the same as start_time adding one second",
+                        );
                         // TODO this is a bit of a hack becase if there are more than 250 articles with the same datetime then we will never get the ones beyond 250
                         //  There may be ways around this we will have to play with the api
                         //  This should be logged with a warning
@@ -77,12 +86,13 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                     } else {
                         start_time = t;
                     }
-                    println!("Latest start_time date: {}", start_time);
+                    self.logger
+                        .debug(format!("Latest start_time date: {}", start_time).as_str());
                     // TODO here it should go on a channel for persisting, but get the basics working 1st
                     all_articles.append(&mut news_articles);
                 }
                 _ => {
-                    println!("An unexpected length was returned");
+                    self.logger.error("An unexpected length was returned");
                     break;
                 }
             }

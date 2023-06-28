@@ -1,27 +1,33 @@
 use crate::core::domain::{ArticleQuery, DateRange, NewsArticle};
+use crate::core::service;
 use async_trait::async_trait;
 
-// pub trait NewsService {
-//     // Retrieves articles from the repository with the provided categories
-//     fn get_articles_with_categories(
-//         &self,
-//         category: Vec<String>,
-//         date_range: DateRange,
-//     ) -> Vec<NewsArticle>;
-//     // Validates if the category provided is valid
-//     fn is_valid_category(&self, category: String) -> bool;
-//     // Adds a new category to the repository
-//     fn add_category(&self, category: String) -> bool;
-//     // Runs the full pipeline which queries for articles from the NewsSearchClient and stores the new articles
-//     fn fetch_and_store_articles(&self, query: ArticleQuery) -> i32;
-// }
+#[async_trait]
+pub trait NewsService: Send {
+    // Retrieves articles from the repository with the provided categories
+    async fn get_articles_with_categories(
+        &self,
+        category: Vec<String>,
+        date_range: DateRange,
+    ) -> Result<Vec<NewsArticle>, Box<dyn std::error::Error>>;
 
-pub trait NewsSearchClient {
+    async fn is_valid_category(&self, category: String)
+        -> Result<bool, Box<dyn std::error::Error>>;
+
+    async fn add_category(&self, category: String) -> Result<bool, Box<dyn std::error::Error>>;
+
+    async fn fetch_and_store_articles(
+        &self,
+        query: ArticleQuery,
+    ) -> Result<i32, service::NewsServiceError>;
+}
+
+pub trait NewsSearchClient: Send + Sync {
     fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle>;
 }
 
 #[async_trait]
-pub trait NewsRepository {
+pub trait NewsRepository: Send + Sync {
     async fn get_articles_with_categories(
         &self,
         categories: Vec<String>,
