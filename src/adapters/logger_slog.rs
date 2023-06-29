@@ -1,5 +1,4 @@
 use crate::core::ports;
-use slog::Logger as SlogLogger;
 use slog::{o, Drain};
 use std::process;
 use std::sync::{Arc, Mutex};

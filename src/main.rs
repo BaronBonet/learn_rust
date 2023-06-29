@@ -12,13 +12,13 @@ use std::env;
 
 use crate::adapters::logger_slog::SlogLoggerAdapter;
 use crate::adapters::news_search_client_gdeltproject;
-use crate::chrono::Utc;
-use crate::core::domain::{ArticleQuery, NewsArticle};
-use crate::core::ports::{Logger, NewsRepository, NewsSearchClient};
-use crate::core::service::NewsServiceError;
-use csv::Writer;
-use isocountry::CountryCode;
-use std::error::Error;
+
+
+use crate::core::ports::{Logger};
+
+
+
+
 use std::sync::Arc;
 
 #[tokio::main]

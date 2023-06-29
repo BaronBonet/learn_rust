@@ -2,7 +2,6 @@ use crate::core::domain::{ArticleQuery, DateRange, NewsArticle};
 use crate::core::ports;
 use async_trait::async_trait;
 use std::fmt;
-use std::io::{Error, ErrorKind};
 
 pub struct NewsService {
     logger: Box<dyn ports::Logger>,
@@ -26,13 +25,13 @@ impl NewsService {
 
 #[async_trait]
 impl ports::NewsService for NewsService {
-    async fn get_articles_with_categories(
+    async fn get_articles_by_categories(
         &self,
         categories: Vec<String>,
         date_range: DateRange,
     ) -> Result<Vec<NewsArticle>, Box<dyn std::error::Error>> {
         self.news_repository
-            .get_articles_with_categories(categories)
+            .get_articles_by_categories(categories, date_range)
             .await
     }
 

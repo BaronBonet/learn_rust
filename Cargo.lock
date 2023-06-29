@@ -850,6 +850,7 @@ dependencies = [
  "slog-async",
  "slog-term",
  "sqlx",
+ "thiserror",
  "tokio",
  "tower",
  "tower-http",

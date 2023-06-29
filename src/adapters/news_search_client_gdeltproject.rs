@@ -2,10 +2,8 @@ use crate::core::domain::{ArticleQuery, NewsArticle};
 use crate::core::ports;
 use crate::core::ports::NewsSearchClient;
 use chrono::format::ParseError;
-use chrono::prelude::*;
-use chrono::{DateTime, NaiveDateTime, Utc};
-use isocountry::full::{ISO_FULL_FRA, ISO_FULL_GBR};
-use isocountry::{full, CountryCode};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use isocountry::CountryCode;
 use std::collections::HashMap;
 use std::error::Error;
 use urlencoding::encode;
@@ -21,21 +19,24 @@ impl GDeltaProjectNewsSearchAdapter {
 
 impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
     fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle> {
-        let mut start_time = query.start_datetime;
+        let mut start_time = query.date_range.inclusive_start_date;
         self.logger.debug(
             format!(
                 "Fetching articles between {} and {}...",
                 start_time.format("%Y-%m-%d %H:%M:%S"),
-                query.end_datetime.format("%Y-%m-%d %H:%M:%S")
+                query
+                    .date_range
+                    .inclusive_end_date
+                    .format("%Y-%m-%d %H:%M:%S")
             )
             .as_str(),
         );
         let mut all_articles: Vec<NewsArticle> = vec![];
 
-        while start_time < query.end_datetime {
+        while start_time < query.date_range.inclusive_end_date {
             let resp = match call_url(
                 start_time,
-                query.end_datetime,
+                query.date_range.inclusive_end_date,
                 query.source_country,
                 query.category.to_string(),
             ) {
@@ -52,7 +53,7 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                 Ok(ars) => {
                     articles = ars;
                 }
-                Err(err) => {
+                Err(_err) => {
                     self.logger.warn("Error extracting articles: {err}");
 
                     break;
@@ -72,7 +73,7 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                 }
                 // Since we hard code 250 results from the api
                 250.. => {
-                    let t = news_articles.last().unwrap().date;
+                    let t = news_articles.last().unwrap().datetime;
                     self.logger
                         .debug(format!("Latest article date: {}", t).as_str());
                     if t == start_time {
@@ -204,7 +205,7 @@ fn to_news_article(
             Some(NewsArticle {
                 title: element.title.clone(),
                 category: category.to_string(),
-                date: date.unwrap().into(),
+                datetime: date.unwrap().into(),
                 url: element.url.clone(),
                 domain: element.domain.clone(),
                 language: element.language.clone(),
@@ -256,7 +257,7 @@ mod tests {
             start_time,
             end_time,
             CountryCode::FRA,
-            ArticleCategory::ClimateChange,
+            "climate change".to_string(),
         );
         assert_eq!(
             url,
@@ -298,8 +299,8 @@ mod tests {
         };
         articles.push(invalid_country_article);
 
-        let category = ArticleCategory::ClimateChange;
-        let news_articles = to_news_article(articles, &category, CountryCode::FRA);
+        let news_articles =
+            to_news_article(articles, &"climate change".to_string(), CountryCode::FRA);
 
         assert_eq!(news_articles.len(), 1);
         assert_eq!(news_articles[0].title, "Valid Article");

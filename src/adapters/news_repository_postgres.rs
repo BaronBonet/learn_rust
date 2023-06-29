@@ -1,9 +1,7 @@
-use crate::core::domain::NewsArticle;
-use crate::core::ports;
 use crate::core::ports::NewsRepository;
+use crate::core::{domain, ports};
 use async_trait::async_trait;
 use isocountry::CountryCode;
-use sqlx::types::chrono::NaiveDateTime;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 pub struct PostgresNewsRepository {
@@ -19,19 +17,24 @@ impl PostgresNewsRepository {
 
 #[async_trait]
 impl NewsRepository for PostgresNewsRepository {
-    async fn get_articles_with_categories(
+    async fn get_articles_by_categories(
         &self,
         categories: Vec<String>,
-    ) -> Result<Vec<NewsArticle>, Box<dyn std::error::Error>> {
+        date_range: domain::DateRange,
+    ) -> Result<Vec<domain::NewsArticle>, Box<dyn std::error::Error>> {
         let rows = sqlx::query(
             r#"
                 SELECT news_articles.*, news_article_categories.category_name
                 FROM news_articles
                 JOIN news_article_categories ON news_articles.id = news_article_categories.news_article_id
                 WHERE news_article_categories.category_name = ANY($1)
+                AND news_articles.seen_at >= $2
+                AND news_articles.seen_at <= $3
                 "#,
         )
         .bind(&categories)
+        .bind(date_range.inclusive_start_date)
+        .bind(date_range.inclusive_end_date)
         .fetch_all(&self.pool)
         .await?;
 
@@ -42,14 +45,14 @@ impl NewsRepository for PostgresNewsRepository {
                 // TODO error handling for country code
                 let country_code = CountryCode::for_alpha3(&country_str).unwrap();
 
-                NewsArticle {
+                domain::NewsArticle {
                     title: row.get("title"),
                     category: row.get("category_name"),
                     domain: row.get("domain"),
                     country: country_code,
                     url: row.get("url"),
                     language: row.get("language"),
-                    date: row.get("seen_at"),
+                    datetime: row.get("seen_at"),
                 }
             })
             .collect();
@@ -59,7 +62,7 @@ impl NewsRepository for PostgresNewsRepository {
 
     async fn store_articles(
         &self,
-        articles: Vec<NewsArticle>,
+        articles: Vec<domain::NewsArticle>,
     ) -> Result<i32, Box<dyn std::error::Error>> {
         let mut tx = self.pool.begin().await?;
         let mut num_inserted = 0;
@@ -121,7 +124,7 @@ impl NewsRepository for PostgresNewsRepository {
 
 async fn insert_article(
     tx: &mut Transaction<'_, Postgres>,
-    article: &NewsArticle,
+    article: &domain::NewsArticle,
 ) -> Result<i32, sqlx::Error> {
     match sqlx::query_as(
         "INSERT INTO news_articles (title, domain, country, seen_at, url, language) 
@@ -131,7 +134,7 @@ async fn insert_article(
     .bind(&article.title)
     .bind(&article.domain)
     .bind(article.country.alpha3())
-    .bind(&article.date)
+    .bind(&article.datetime)
     .bind(&article.url)
     .bind(&article.language)
     .fetch_optional(&mut *tx)
@@ -146,7 +149,7 @@ async fn insert_article(
             .bind(&article.title)
             .bind(&article.domain)
             .bind(article.country.alpha3())
-            .bind(&article.date)
+            .bind(&article.datetime)
             .fetch_one(&mut *tx)
             .await?;
             Ok(id.0)

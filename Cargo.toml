@@ -22,3 +22,4 @@ slog-async = "2"
 axum = "0.6.18"
 tower = { version = "0.4", features = ["util", "timeout"] }
 tower-http = { version = "0.4.0", features = ["add-extension", "trace"] }
+thiserror = "1.0"

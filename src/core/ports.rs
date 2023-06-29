@@ -5,7 +5,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait NewsService: Send + Sync {
     // Retrieves articles from the repository with the provided categories
-    async fn get_articles_with_categories(
+    async fn get_articles_by_categories(
         &self,
         category: Vec<String>,
         date_range: DateRange,
@@ -28,15 +28,19 @@ pub trait NewsSearchClient: Send + Sync {
 
 #[async_trait]
 pub trait NewsRepository: Send + Sync {
-    async fn get_articles_with_categories(
+    async fn get_articles_by_categories(
         &self,
         categories: Vec<String>,
+        date_range: DateRange,
     ) -> Result<Vec<NewsArticle>, Box<dyn std::error::Error>>;
+
     async fn store_articles(
         &self,
         articles: Vec<NewsArticle>,
     ) -> Result<i32, Box<dyn std::error::Error>>;
+
     async fn add_category(&self, category: String) -> Result<bool, Box<dyn std::error::Error>>;
+
     async fn is_valid_category(&self, category: String)
         -> Result<bool, Box<dyn std::error::Error>>;
 }
