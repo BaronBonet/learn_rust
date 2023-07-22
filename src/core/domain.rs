@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use isocountry::CountryCode;
-use serde::{Deserializer, Serializer};
+use serde::Serializer;
 use thiserror::Error;
 
 #[derive(Debug, serde::Serialize)]

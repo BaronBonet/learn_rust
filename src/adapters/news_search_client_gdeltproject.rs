@@ -2,7 +2,7 @@ use crate::core::domain::{ArticleQuery, NewsArticle};
 use crate::core::ports;
 use crate::core::ports::NewsSearchClient;
 use chrono::format::ParseError;
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use isocountry::CountryCode;
 use std::collections::HashMap;
 use std::error::Error;
