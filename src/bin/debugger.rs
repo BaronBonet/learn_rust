@@ -1,7 +1,11 @@
-use crate::adapters;
-use crate::core;
-use crate::handlers;
-use crate::infrastructure;
+use learn_rust::adapters;
+use learn_rust::adapters::logger_slog::SlogLoggerAdapter;
+use learn_rust::adapters::news_search_client_gdeltproject;
+use learn_rust::core;
+use learn_rust::core::ports::Logger;
+use learn_rust::core::ports::NewsService;
+use learn_rust::handlers;
+use learn_rust::infrastructure;
 
 #[macro_use]
 extern crate serde_derive;
@@ -9,11 +13,6 @@ extern crate chrono;
 extern crate serde_json;
 extern crate ureq;
 use std::env;
-
-use crate::adapters::logger_slog::SlogLoggerAdapter;
-use crate::adapters::news_search_client_gdeltproject;
-
-use crate::core::ports::Logger;
 
 use std::sync::Arc;
 
@@ -44,26 +43,22 @@ async fn main() {
         Box::new(g_delta_project_adapter),
     ));
 
-    // psudo code
-    let rest_handler =
-        handlers::rest::RestHandler::new(news_service, logger.clone(), "3000".to_string());
-    rest_handler.start().await.unwrap();
+    let date_range = match core::domain::DateRange::new(
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now(),
+    )
+    .map_err(|e| e.to_string())
+    {
+        Ok(date_range) => date_range,
+        Err(e) => panic!("{}", e),
+    };
+
+    match news_service
+        .sync_articles(date_range)
+        .await
+        .map_err(|e| e.to_string())
+    {
+        Ok(_) => logger.info("Successfully synced articles"),
+        Err(e) => panic!("{}", e),
+    };
 }
-// let end_datetime = Utc::now();
-// let start_datetime = end_datetime - chrono::Duration::days(1);
-// let q = ArticleQuery::new(
-// CountryCode::FRA,
-// "fake".to_string(),
-// start_datetime,
-// end_datetime,
-// );
-// match news_service.fetch_and_store_articles(q).await {
-// Ok(num) => logger.info(&format!("Successfully stored {} articles.", num)),
-// Err(NewsServiceError::InvalidCategory(category)) => logger.warn(&format!(
-//     "Invalid category passed to fetch_and_store_articles: {}",
-//     category
-// )),
-// Err(NewsServiceError::RepositoryError(err)) => {
-// logger.error(&format!("Failed to fetch and store articles: {}", err))
-// }
-// }

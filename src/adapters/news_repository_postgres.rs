@@ -71,7 +71,7 @@ impl NewsRepository for PostgresNewsRepository {
         let mut num_inserted = 0;
 
         for article in &articles {
-            match insert_article(&mut tx, article).await {
+            match insert_article(&mut tx, article, &self.logger).await {
                 Ok(id) => {
                     // If there was no error then attempt to add the category to the article
                     sqlx::query(
@@ -148,11 +148,12 @@ impl NewsRepository for PostgresNewsRepository {
 async fn insert_article(
     tx: &mut Transaction<'_, Postgres>,
     article: &domain::NewsArticle,
+    logger: &Box<dyn ports::Logger>,
 ) -> Result<i32, sqlx::Error> {
     match sqlx::query_as(
-        "INSERT INTO news_articles (title, domain, country, seen_at, url, language) 
+        "INSERT INTO news_articles (title, domain, country_iso_alpha_3, seen_at, url, language) 
         VALUES ($1, $2, $3, $4, $5, $6) 
-        ON CONFLICT (title, domain, country, seen_at) DO NOTHING RETURNING id",
+        ON CONFLICT (title, domain, country_iso_alpha_3, seen_at) DO NOTHING RETURNING id",
     )
     .bind(&article.title)
     .bind(&article.domain)
@@ -165,10 +166,10 @@ async fn insert_article(
     {
         Some((id,)) => Ok(id),
         None => {
-            // Return the id of the existing article
+            logger.debug(format!("Article already exists: {}", &article.title).as_str());
             let id: (i32,) = sqlx::query_as(
                 "SELECT id FROM news_articles
-                WHERE title = $1 AND domain = $2 AND country = $3 AND seen_at = $4",
+                WHERE title = $1 AND domain = $2 AND country_iso_alpha_3 = $3 AND seen_at = $4",
             )
             .bind(&article.title)
             .bind(&article.domain)
@@ -176,6 +177,7 @@ async fn insert_article(
             .bind(&article.datetime)
             .fetch_one(&mut *tx)
             .await?;
+            // Return the id of the existing article
             Ok(id.0)
         }
     }

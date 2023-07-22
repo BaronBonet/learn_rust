@@ -73,6 +73,8 @@ impl ports::NewsService for NewsService {
             let num = self.fetch_and_store_articles(query).await?;
             num_articles += num;
         }
+        self.logger
+            .info(&format!("Synced {} articles", num_articles));
         Ok(num_articles)
     }
 }

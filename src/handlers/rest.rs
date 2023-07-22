@@ -98,8 +98,8 @@ async fn get_articles_by_categories_handler(
     Query(query): Query<ArticleQuery>,
 ) -> impl IntoResponse {
     let categories: Vec<String> = query.categories.split(',').map(|s| s.to_string()).collect();
-
     // TODO validate categories
+
     let date_range = domain::DateRange::new(query.inclusive_start_date, query.inclusive_end_date)
         .map_err(|e| {
             // TODO handle error
