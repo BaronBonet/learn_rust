@@ -84,6 +84,8 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                         //  There may be ways around this we will have to play with the api
                         //  This should be logged with a warning
                         start_time = t + chrono::Duration::seconds(1);
+                        self.logger
+                            .warn(format!("Start and end time for the articles returned from the server were the same, adding 1 second to start time.\nTime: {}", t).as_str());
                     } else {
                         start_time = t;
                     }
@@ -102,7 +104,7 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, serde::Deserialize, Clone)]
 struct GDeltaArticle {
     url: String,
     title: String,

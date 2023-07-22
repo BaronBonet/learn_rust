@@ -2,7 +2,9 @@ use crate::core::ports::NewsRepository;
 use crate::core::{domain, ports};
 use async_trait::async_trait;
 use isocountry::CountryCode;
+use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Postgres, Row, Transaction};
+use std::error::Error;
 
 pub struct PostgresNewsRepository {
     pool: PgPool,
@@ -38,10 +40,11 @@ impl NewsRepository for PostgresNewsRepository {
         .fetch_all(&self.pool)
         .await?;
 
+        // TODO make this into a function and add a unit test
         let articles = rows
             .into_iter()
             .map(|row| {
-                let country_str: String = row.get("country");
+                let country_str: String = row.get("country_iso_alpha_3");
                 // TODO error handling for country code
                 let country_code = CountryCode::for_alpha3(&country_str).unwrap();
 
@@ -70,6 +73,7 @@ impl NewsRepository for PostgresNewsRepository {
         for article in &articles {
             match insert_article(&mut tx, article).await {
                 Ok(id) => {
+                    // If there was no error then attempt to add the category to the article
                     sqlx::query(
                         "INSERT INTO news_article_categories (news_article_id, category_name) 
                     VALUES ($1, $2) ON CONFLICT DO NOTHING",
@@ -120,6 +124,25 @@ impl NewsRepository for PostgresNewsRepository {
 
         Ok(row.0 > 0)
     }
+
+    async fn get_categories(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        let rows = sqlx::query("SELECT name FROM categories")
+            .fetch_all(&self.pool)
+            .await?;
+        let categories = rows.into_iter().map(|row| row.get("name")).collect();
+        Ok(categories)
+    }
+
+    async fn get_countries(&self) -> Result<Vec<CountryCode>, Box<dyn Error>> {
+        let rows = sqlx::query("SELECT iso_alpha_3 from countries")
+            .fetch_all(&self.pool)
+            .await?;
+        let countries = rows
+            .into_iter()
+            .filter_map(|row| get_country_code(&row, "iso_alpha_3").ok())
+            .collect();
+        Ok(countries)
+    }
 }
 
 async fn insert_article(
@@ -142,6 +165,7 @@ async fn insert_article(
     {
         Some((id,)) => Ok(id),
         None => {
+            // Return the id of the existing article
             let id: (i32,) = sqlx::query_as(
                 "SELECT id FROM news_articles
                 WHERE title = $1 AND domain = $2 AND country = $3 AND seen_at = $4",
@@ -156,3 +180,19 @@ async fn insert_article(
         }
     }
 }
+
+fn get_country_code(row: &PgRow, field_name: &str) -> Result<CountryCode, Box<dyn Error>> {
+    let country_str: String = row.get(field_name);
+    CountryCode::for_alpha3(&country_str).map_err(|_| Box::new(CountryCodeError) as Box<dyn Error>)
+}
+
+#[derive(Debug)]
+struct CountryCodeError;
+
+impl std::fmt::Display for CountryCodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid country code")
+    }
+}
+
+impl std::error::Error for CountryCodeError {}

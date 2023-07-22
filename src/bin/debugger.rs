@@ -1,7 +1,7 @@
-mod adapters;
-mod core;
-mod handlers;
-mod infrastructure;
+use crate::adapters;
+use crate::core;
+use crate::handlers;
+use crate::infrastructure;
 
 #[macro_use]
 extern crate serde_derive;

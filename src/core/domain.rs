@@ -3,7 +3,7 @@ use isocountry::CountryCode;
 use serde::{Deserializer, Serializer};
 use thiserror::Error;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, serde::Serialize)]
 pub struct NewsArticle {
     pub title: String,
     pub category: String,
@@ -52,9 +52,26 @@ impl ArticleQuery {
             date_range,
         }
     }
+    pub fn build_queries(
+        categories: Vec<String>,
+        countries: Vec<CountryCode>,
+        date_range: DateRange,
+    ) -> Vec<ArticleQuery> {
+        let mut queries = Vec::new();
+        for country in countries {
+            for category in &categories {
+                queries.push(ArticleQuery::new(
+                    country.clone(),
+                    category.clone(),
+                    date_range.clone(),
+                ));
+            }
+        }
+        queries
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DateRange {
     pub inclusive_start_date: DateTime<Utc>,
     pub inclusive_end_date: DateTime<Utc>,

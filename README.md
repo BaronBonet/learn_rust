@@ -8,3 +8,5 @@ curl -X GET localhost:3000/is-valid-category/climate%20change
 ```
 curl -X GET "localhost:3000/get-articles-by-category?categories=climate%20change,environment&inclusive_start_date=2022-01-01&inclusive_end_date=2024-01-01"
 ```
+
+Repository layer uses sqlx, for [managing migrations](https://crates.io/crates/sqlx-cli)

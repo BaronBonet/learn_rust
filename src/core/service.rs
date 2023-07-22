@@ -63,6 +63,18 @@ impl ports::NewsService for NewsService {
             .await
             .map_err(NewsServiceError::RepositoryError)
     }
+
+    async fn sync_articles(&self, date_range: DateRange) -> Result<i32, NewsServiceError> {
+        let categories = self.news_repository.get_categories().await?;
+        let countries = self.news_repository.get_countries().await?;
+        let queries = ArticleQuery::build_queries(categories, countries, date_range);
+        let mut num_articles = 0;
+        for query in queries {
+            let num = self.fetch_and_store_articles(query).await?;
+            num_articles += num;
+        }
+        Ok(num_articles)
+    }
 }
 
 pub enum NewsServiceError {
@@ -78,5 +90,11 @@ impl fmt::Display for NewsServiceError {
             }
             NewsServiceError::RepositoryError(err) => write!(f, "Repository error: {}", err),
         }
+    }
+}
+
+impl From<Box<dyn std::error::Error>> for NewsServiceError {
+    fn from(err: Box<dyn std::error::Error>) -> NewsServiceError {
+        NewsServiceError::RepositoryError(err)
     }
 }

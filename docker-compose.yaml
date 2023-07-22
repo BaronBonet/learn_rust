@@ -17,6 +17,8 @@ services:
       interval: 5s
       timeout: 1s
       retries: 5
+    networks:
+      - backend
 
   migrations:
     build:
@@ -28,6 +30,8 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
     volumes:
       - ./migrations:/migrations
+    networks:
+      - backend
 
   dummy_data_loader:
     image: postgres:14.5
@@ -39,3 +43,8 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
     command: >
       bash -c "psql $$DATABASE_URL < /local/dummy_data.sql"
+    networks:
+      - backend
+
+networks:
+  backend:
