@@ -23,7 +23,7 @@ impl NewsRepository for PostgresNewsRepository {
         &self,
         categories: Vec<String>,
         date_range: domain::DateRange,
-    ) -> Result<Vec<domain::NewsArticle>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<domain::NewsArticle>, Box<dyn Error>> {
         let rows = sqlx::query(
             r#"
                 SELECT news_articles.*, news_article_categories.category_name

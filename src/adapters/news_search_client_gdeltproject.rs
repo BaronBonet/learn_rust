@@ -3,7 +3,7 @@ use crate::core::ports;
 use crate::core::ports::NewsSearchClient;
 use async_trait::async_trait;
 use chrono::format::ParseError;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use isocountry::CountryCode;
 use std::collections::HashMap;
 use std::error::Error;
