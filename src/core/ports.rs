@@ -2,6 +2,7 @@ use crate::core::domain::{ArticleQuery, DateRange, NewsArticle};
 use crate::core::service;
 use async_trait::async_trait;
 use isocountry::CountryCode;
+use tokio::sync::mpsc;
 
 #[async_trait]
 pub trait NewsService: Send + Sync {
@@ -29,8 +30,13 @@ pub trait NewsService: Send + Sync {
     async fn sync_articles(&self, date_range: DateRange) -> Result<i32, service::NewsServiceError>;
 }
 
+#[async_trait]
 pub trait NewsSearchClient: Send + Sync {
-    fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle>;
+    async fn query_for_articles(
+        &self,
+        query: ArticleQuery,
+        channel: mpsc::Sender<Vec<NewsArticle>>,
+    );
 }
 
 #[async_trait]

@@ -1,11 +1,13 @@
 use crate::core::domain::{ArticleQuery, NewsArticle};
 use crate::core::ports;
 use crate::core::ports::NewsSearchClient;
+use async_trait::async_trait;
 use chrono::format::ParseError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use isocountry::CountryCode;
 use std::collections::HashMap;
 use std::error::Error;
+use tokio::sync::mpsc;
 use urlencoding::encode;
 
 pub struct GDeltaProjectNewsSearchAdapter {
@@ -17,8 +19,13 @@ impl GDeltaProjectNewsSearchAdapter {
     }
 }
 
+#[async_trait]
 impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
-    fn query_for_articles(&self, query: ArticleQuery) -> Vec<NewsArticle> {
+    async fn query_for_articles(
+        &self,
+        query: ArticleQuery,
+        channel: mpsc::Sender<Vec<NewsArticle>>,
+    ) {
         let mut start_time = query.date_range.inclusive_start_date;
         self.logger.debug(
             format!(
@@ -31,7 +38,6 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
             )
             .as_str(),
         );
-        let mut all_articles: Vec<NewsArticle> = vec![];
 
         while start_time < query.date_range.inclusive_end_date {
             let resp = match call_url(
@@ -55,12 +61,10 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                 }
                 Err(_err) => {
                     self.logger.warn("Error extracting articles: {err}");
-
                     break;
                 }
             }
-            let mut news_articles =
-                to_news_article(articles, &query.category, query.source_country);
+            let news_articles = to_news_article(articles, &query.category, query.source_country);
             match news_articles.len() {
                 0 => {
                     self.logger.debug("No articles found");
@@ -68,7 +72,7 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                 }
                 1..=249 => {
                     self.logger.debug("Less than 250 articles found");
-                    all_articles.append(&mut news_articles);
+                    channel.send(news_articles).await.unwrap();
                     break;
                 }
                 // Since we hard code 250 results from the api
@@ -91,8 +95,7 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                     }
                     self.logger
                         .debug(format!("Latest start_time date: {}", start_time).as_str());
-                    // TODO here it should go on a channel for persisting, but get the basics working 1st
-                    all_articles.append(&mut news_articles);
+                    channel.send(news_articles).await.unwrap();
                 }
                 _ => {
                     self.logger.error("An unexpected length was returned");
@@ -100,7 +103,6 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
                 }
             }
         }
-        all_articles
     }
 }
 

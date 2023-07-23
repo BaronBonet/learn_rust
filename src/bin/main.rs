@@ -1,5 +1,4 @@
 use tokio::sync::mpsc;
-use tokio::try_join;
 
 const NAMES: [&str; 5] = ["Steve", "Bob", "Alice", "John", "Jane"];
 
@@ -10,9 +9,6 @@ struct Person {
 }
 
 async fn some_computation(name: &str) -> Person {
-    if name == "Steve" {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    }
     let resp = ureq::get(format!("https://api.agify.io/?name={}", name).as_str())
         .call()
         .unwrap()
@@ -26,24 +22,30 @@ async fn some_computation(name: &str) -> Person {
     }
 }
 
+async fn do_thing(tx: mpsc::Sender<Person>) {
+    for name in NAMES.iter() {
+        let result = some_computation(name).await;
+        if result.age > 40 {
+            println!("{} is old", &result.name);
+            tx.send(result).await.unwrap();
+        } else {
+            println!("{} is young", &result.name)
+        }
+    }
+}
+
 async fn save_to_db(person: Person) {
     println!("Saving {} to db", person.name);
 }
 
 #[tokio::main]
 async fn main() {
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, mut rx) = mpsc::channel(100);
 
-    for name in NAMES.iter() {
-        // Each task needs its own `tx` handle. This is done by cloning the
-        // original handle.
-        let tx_clone = tx.clone();
-
-        tokio::spawn(async move {
-            let result = some_computation(name).await;
-            tx_clone.send(result).await.unwrap();
-        });
-    }
+    tokio::spawn(async move {
+        do_thing(tx).await;
+    });
+    println!("Waiting for results");
 
     while let Some(res) = rx.recv().await {
         save_to_db(res).await;

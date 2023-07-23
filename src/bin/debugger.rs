@@ -4,12 +4,10 @@ use learn_rust::adapters::news_search_client_gdeltproject;
 use learn_rust::core;
 use learn_rust::core::ports::Logger;
 use learn_rust::core::ports::NewsService;
-use learn_rust::handlers;
 use learn_rust::infrastructure;
 
-#[macro_use]
-extern crate serde_derive;
 extern crate chrono;
+extern crate serde_derive;
 extern crate serde_json;
 extern crate ureq;
 use std::env;
@@ -40,7 +38,7 @@ async fn main() {
     let news_service = Arc::new(core::service::NewsService::new(
         logger.clone(),
         Box::new(repo),
-        Box::new(g_delta_project_adapter),
+        Arc::new(g_delta_project_adapter),
     ));
 
     let date_range = match core::domain::DateRange::new(

@@ -2,18 +2,19 @@ use crate::core::domain::{ArticleQuery, DateRange, NewsArticle};
 use crate::core::ports;
 use async_trait::async_trait;
 use std::fmt;
+use tokio::sync::mpsc;
 
 pub struct NewsService {
     logger: Box<dyn ports::Logger>,
     news_repository: Box<dyn ports::NewsRepository>,
-    news_search_client: Box<dyn ports::NewsSearchClient>,
+    news_search_client: std::sync::Arc<dyn ports::NewsSearchClient>,
 }
 
 impl NewsService {
     pub fn new(
         logger: Box<dyn ports::Logger>,
         news_repository: Box<dyn ports::NewsRepository>,
-        news_search_client: Box<dyn ports::NewsSearchClient>,
+        news_search_client: std::sync::Arc<dyn ports::NewsSearchClient>,
     ) -> Self {
         Self {
             logger,
@@ -57,11 +58,19 @@ impl ports::NewsService for NewsService {
             return Err(NewsServiceError::InvalidCategory(query.category.clone()));
         }
         self.logger.debug("starting fetch and store articles");
-        let articles = self.news_search_client.query_for_articles(query);
-        self.news_repository
-            .store_articles(articles)
-            .await
-            .map_err(NewsServiceError::RepositoryError)
+        let (channel, mut rx) = mpsc::channel(100);
+        let client = std::sync::Arc::clone(&self.news_search_client);
+        tokio::spawn(async move {
+            client.query_for_articles(query, channel).await;
+        });
+        let mut count = 0;
+        while let Some(articles) = rx.recv().await {
+            match self.news_repository.store_articles(articles).await {
+                Ok(num) => count += num,
+                Err(e) => self.logger.error(&format!("Error storing articles: {}", e)),
+            }
+        }
+        Ok(count)
     }
 
     async fn sync_articles(&self, date_range: DateRange) -> Result<i32, NewsServiceError> {
