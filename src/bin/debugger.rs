@@ -42,8 +42,8 @@ async fn main() {
     ));
 
     let date_range = match core::domain::DateRange::new(
+        chrono::Utc::now() - chrono::Duration::days(60),
         chrono::Utc::now() - chrono::Duration::days(30),
-        chrono::Utc::now(),
     )
     .map_err(|e| e.to_string())
     {

@@ -40,7 +40,7 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
         );
 
         while start_time < query.date_range.inclusive_end_date {
-            let resp = match call_url(
+            let resp = match self.call_url(
                 start_time,
                 query.date_range.inclusive_end_date,
                 query.source_country,
@@ -106,6 +106,32 @@ impl NewsSearchClient for GDeltaProjectNewsSearchAdapter {
     }
 }
 
+impl GDeltaProjectNewsSearchAdapter {
+    fn call_url(
+        &self,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        source_country: CountryCode,
+        category: String,
+    ) -> Result<ureq::Response, Box<dyn Error>> {
+        let url = build_url(start_time, end_time, source_country, category);
+        self.logger
+            .debug(format!("Fetching articles from {}... ", url).as_str());
+        let resp = ureq::get(&url).call()?;
+
+        match resp.status() {
+            200 => Ok(resp),
+            status => {
+                let body = resp.into_string().unwrap();
+                Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("HTTP error, status: {}, body: {}", status, body),
+                )))
+            }
+        }
+    }
+}
+
 #[derive(Debug, serde::Deserialize, Clone)]
 struct GDeltaArticle {
     url: String,
@@ -161,28 +187,6 @@ fn extract_articles_from_response(
             std::io::ErrorKind::Other,
             format!("Error parsing response body: {}", response_string),
         ))),
-    }
-}
-
-fn call_url(
-    start_time: DateTime<Utc>,
-    end_time: DateTime<Utc>,
-    source_country: CountryCode,
-    category: String,
-) -> Result<ureq::Response, Box<dyn Error>> {
-    let url = build_url(start_time, end_time, source_country, category);
-    println!("Fetching articles from {}... ", url);
-    let resp = ureq::get(&url).call()?;
-
-    match resp.status() {
-        200 => Ok(resp),
-        status => {
-            let body = resp.into_string().unwrap();
-            Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("HTTP error, status: {}, body: {}", status, body),
-            )))
-        }
     }
 }
 

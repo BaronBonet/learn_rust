@@ -1,4 +1,5 @@
 use crate::core::ports;
+use crate::core::ports::Logger;
 use slog::{o, Drain};
 use std::process;
 use std::sync::{Arc, Mutex};
@@ -44,5 +45,8 @@ impl ports::Logger for SlogLoggerAdapter {
         let logger = self.logger.lock().unwrap();
         slog::crit!(logger, "{}", msg);
         process::exit(1);
+    }
+    fn clone_box(&self) -> Box<dyn Logger> {
+        Box::new(self.clone())
     }
 }

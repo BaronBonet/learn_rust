@@ -19,7 +19,6 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() {
     let logger = Box::new(SlogLoggerAdapter::new());
-    logger.info("Application has started");
     let db_user = env::var("POSTGRES_USER").unwrap_or_else(|_| String::from("postgres"));
     let db_password = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| String::from("postgres"));
     let db_name = env::var("POSTGRES_DB").unwrap_or_else(|_| String::from("postgres"));
@@ -40,7 +39,7 @@ async fn main() {
     let news_service = Arc::new(core::service::NewsService::new(
         logger.clone(),
         Box::new(repo),
-        Box::new(g_delta_project_adapter),
+        Arc::new(g_delta_project_adapter),
     ));
 
     let rest_handler =

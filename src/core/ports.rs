@@ -67,4 +67,5 @@ pub trait Logger: Send + Sync {
     fn warn(&self, msg: &str);
     fn error(&self, msg: &str);
     fn fatal(&self, msg: &str);
+    fn clone_box(&self) -> Box<dyn Logger>; // add a clone_box method
 }

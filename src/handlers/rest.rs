@@ -20,6 +20,20 @@ pub struct RestHandler {
     port: String,
 }
 
+struct AppState {
+    logger: Box<dyn ports::Logger>,
+    news_service: Arc<dyn ports::NewsService>,
+}
+
+impl Clone for AppState {
+    fn clone(&self) -> Self {
+        Self {
+            logger: self.logger.clone_box(),
+            news_service: self.news_service.clone(),
+        }
+    }
+}
+
 impl RestHandler {
     pub fn new(
         news_service: Arc<dyn ports::NewsService>,
@@ -34,6 +48,10 @@ impl RestHandler {
     }
 
     pub async fn start(self) -> Result<(), Box<dyn std::error::Error>> {
+        let app_state = AppState {
+            logger: self.logger,
+            news_service: self.news_service.clone(),
+        };
         let app = Router::new()
             .route(
                 "/is-valid-category/:category_name",
@@ -44,7 +62,7 @@ impl RestHandler {
                 get(get_articles_by_categories_handler),
             )
             .layer(TraceLayer::new_for_http())
-            .with_state(self.news_service);
+            .with_state(app_state);
 
         let addr = SocketAddr::from(([0, 0, 0, 0], self.port.parse()?));
 
@@ -68,10 +86,11 @@ struct CategoryValidityResponse {
 }
 
 async fn is_valid_category_handler(
-    State(news_service): State<Arc<dyn ports::NewsService>>,
+    State(app_state): State<AppState>,
     category_query: Path<String>,
 ) -> impl IntoResponse {
-    let is_valid = news_service
+    let is_valid = app_state
+        .news_service
         .is_valid_category(category_query.to_string())
         .await
         .unwrap_or(false);
@@ -94,7 +113,7 @@ pub struct ArticleQuery {
 }
 
 async fn get_articles_by_categories_handler(
-    State(news_service): State<Arc<dyn ports::NewsService>>,
+    State(app_state): State<AppState>,
     Query(query): Query<ArticleQuery>,
 ) -> impl IntoResponse {
     let categories: Vec<String> = query.categories.split(',').map(|s| s.to_string()).collect();
@@ -103,12 +122,13 @@ async fn get_articles_by_categories_handler(
     let date_range = domain::DateRange::new(query.inclusive_start_date, query.inclusive_end_date)
         .map_err(|e| {
             // TODO handle error
-            eprintln!("error: {}", e);
+            app_state.logger.error(&e.to_string());
             return e;
         })
         .unwrap();
 
-    let articles = news_service
+    let articles = app_state
+        .news_service
         .get_articles_by_categories(categories, date_range)
         .await
         .unwrap_or(Vec::new());
