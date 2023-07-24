@@ -58,7 +58,7 @@ impl ports::NewsService for NewsService {
             return Err(NewsServiceError::InvalidCategory(query.category.clone()));
         }
         self.logger.debug("starting fetch and store articles");
-        let (channel, mut rx) = mpsc::channel(100);
+        let (channel, mut rx) = mpsc::channel(10000);
         let client = std::sync::Arc::clone(&self.news_search_client);
         tokio::spawn(async move {
             client.query_for_articles(query, channel).await;

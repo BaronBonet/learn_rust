@@ -48,8 +48,9 @@ impl RestHandler {
     }
 
     pub async fn start(self) -> Result<(), Box<dyn std::error::Error>> {
+        self.logger.info("Rest rest handler is starting");
         let app_state = AppState {
-            logger: self.logger,
+            logger: self.logger.clone_box(),
             news_service: self.news_service.clone(),
         };
         let app = Router::new()
@@ -102,8 +103,7 @@ struct ArticleResponse {
     articles: Vec<domain::NewsArticle>,
 }
 
-// TODO is default required?
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize)]
 pub struct ArticleQuery {
     pub categories: String,
     #[serde(deserialize_with = "deserialize")]
@@ -126,6 +126,11 @@ async fn get_articles_by_categories_handler(
             return e;
         })
         .unwrap();
+
+    app_state.logger.info(&format!(
+        "Getting articles for categories {:?} and date range {:?}",
+        categories, date_range
+    ));
 
     let articles = app_state
         .news_service

@@ -30,6 +30,8 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
     volumes:
       - ./migrations:/migrations
+    command: >
+      sqlx migrate run
     networks:
       - backend
 
